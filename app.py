@@ -14,8 +14,8 @@ import urllib.request
 from collections import defaultdict
 
 st.set_page_config(
-    page_title="ELEGANZA | Manufacturing & Merchandising ERP",
-    page_icon="🏛️",
+    page_title="ELEGANZA | Furniture & Home Accessories ERP",
+    page_icon="🛋️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -51,12 +51,10 @@ except Exception:
 # --- MODERN LUXURY DARK-NAVY & GOLD UI THEME ---
 st.markdown("""
     <style>
-    /* Global App Background & Typography */
     .stApp {
         background: radial-gradient(circle at top right, #111b2e 0%, #090d16 100%);
         color: #F0F2F6;
     }
-    /* Compact Elegant Header */
     .brand-header {
         display: flex;
         align-items: center;
@@ -113,8 +111,6 @@ st.markdown("""
         font-weight: 600;
         text-align: right;
     }
-
-    /* Glassmorphic KPI Metric Cards */
     div[data-testid="stMetric"] {
         background: linear-gradient(145deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
         padding: 16px 18px;
@@ -135,8 +131,6 @@ st.markdown("""
         font-size: 22px !important;
         font-weight: 700 !important;
     }
-
-    /* Navigation Tabs */
     div[data-baseweb="tab-list"] {
         gap: 6px !important;
         background: rgba(15, 23, 42, 0.6);
@@ -156,8 +150,6 @@ st.markdown("""
         font-weight: 700 !important;
         border: 1px solid rgba(212, 175, 55, 0.4) !important;
     }
-
-    /* Sidebar & User Badge */
     section[data-testid="stSidebar"] {
         background-color: #0B111E;
         border-right: 1px solid rgba(212, 175, 55, 0.2);
@@ -179,12 +171,14 @@ st.markdown("""
         padding: 16px;
         margin-bottom: 10px;
     }
-    .purchaser-card {
-        background: #162033;
-        padding: 12px;
-        border-radius: 8px;
-        border-left: 4px solid #D4AF37;
-        margin-bottom: 10px;
+    .catalog-card {
+        background: linear-gradient(145deg, #162238 0%, #0D1524 100%);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
     </style>
 """, unsafe_allow_html=True)
@@ -194,8 +188,7 @@ def to_ethiopian(date_val):
     if pd.isna(date_val): return ""
     try:
         dt = date_val.date() if hasattr(date_val, 'date') else date_val
-        k = Kenat(dt)
-        eth = k.get_ethiopian()
+        eth = Kenat(dt).get_ethiopian()
         return f"{eth['day']:02d}/{eth['month']:02d}/{eth['year']} EC ({ETH_MONTHS[eth['month']-1]})"
     except Exception:
         return str(date_val)
@@ -226,7 +219,6 @@ def get_greg_from_eth(eth_y, eth_m, eth_d):
         return pd.NaT
 
 def parse_smart_eth_or_greg_date(val):
-    """Parses DD/MM/YYYY (automatically converting Ethiopian years 2000-2021 to Gregorian) or standard ISO dates."""
     if pd.isna(val) or str(val).strip() in ('', 'DATE', 'date', 'Date'):
         return pd.NaT
     s = str(val).strip()
@@ -350,7 +342,7 @@ def get_eleganza_tab(sheet, tab_name, anchor_col):
         return pd.DataFrame()
 
 # =====================================================================
-# PROFESSIONAL PDF REPORT SUITE (5 EXECUTIVE & AUDIT REPORTS)
+# PROFESSIONAL PDF REPORT SUITE (EXECUTIVE, TREASURY, STOCK, SALES, EXPENSES)
 # =====================================================================
 class EleganzaReportPDF(FPDF):
     def __init__(self, font_name='Helvetica'):
@@ -367,7 +359,7 @@ class EleganzaReportPDF(FPDF):
         self.set_y(self.h - 11)
         self.set_font(self.font_name, '', 7)
         self.set_text_color(130, 130, 130)
-        self.cell(0, 5, f"ELEGANZA Manufacturing & Merchandising  |  Addis Ababa, Ethiopia  |  Page {self.page_no()}", align='C')
+        self.cell(0, 5, f"ELEGANZA Furniture & Home Accessories  |  Addis Ababa, Ethiopia  |  Page {self.page_no()}", align='C')
 
 def _init_pdf():
     if font_ready:
@@ -406,7 +398,7 @@ def _draw_pdf_header(pdf, title, subtitle):
     pdf.set_xy(text_x, 11)
     pdf.set_font(f_name, '', 8)
     pdf.set_text_color(230, 230, 230)
-    pdf.cell(0, 4, "Manufacturing & Merchandising ERP  |  Ethiopia", align='L')
+    pdf.cell(0, 4, "Furniture & Home Accessories Trading  |  Ethiopia", align='L')
 
     pdf.set_xy(10, 6)
     pdf.set_font(f_name, 'B', 8)
@@ -503,43 +495,36 @@ def _draw_total_banner(pdf, label, amount):
     pdf.set_text_color(*WHITE)
     pdf.cell(box_w - 10, 6, f"ETB {amount:,.2f}", ln=True, align='R')
 
-# 1. Executive P&L + Ethiopian VAT (15%) & Tax Summary PDF
-def generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, vat_out, vat_in, stock_val, asset_val):
+# 1. Executive P&L PDF
+def generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, stock_val, asset_val):
     pdf = _init_pdf()
     pdf.add_page()
-    _draw_pdf_header(pdf, "Executive Profit & Loss & Ethiopian Tax Summary", f"Reporting Period: {period_label}")
+    _draw_pdf_header(pdf, "Executive Profit & Loss Statement", f"Reporting Period: {period_label}")
     f_name = pdf.font_name
     NAVY = (31, 56, 100)
 
     pdf.set_font(f_name, 'B', 10)
     pdf.set_text_color(*NAVY)
-    pdf.cell(0, 7, "1. Income Statement (ETB)", ln=True)
-
-    net_vat_payable = max(0.0, vat_out - vat_in)
-    est_profit_tax = max(0.0, net_p * 0.30)  # Ethiopian standard 30% corporate profit tax estimate
+    pdf.cell(0, 7, "1. Merchandising Income Statement (ETB)", ln=True)
 
     pnl_rows = [
-        ["Gross Sales Revenue (Excl. VAT)", f"ETB {rev:,.2f}"],
-        ["Cost of Goods Sold (COGS / Raw Materials)", f"(ETB {cogs:,.2f})"],
-        ["Gross Manufacturing & Trading Profit", f"ETB {gross_p:,.2f}"],
-        ["Operating Expenses (Rent, Utilities, Payroll, Logistics)", f"(ETB {opex:,.2f})"],
-        ["Net Operating Profit (Before Profit Tax)", f"ETB {net_p:,.2f}"],
+        ["Gross Retail & Wholesale Revenue", f"ETB {rev:,.2f}"],
+        ["Cost of Goods Sold (COGS / Import & Local Sourcing)", f"(ETB {cogs:,.2f})"],
+        ["Gross Merchandising Profit", f"ETB {gross_p:,.2f}"],
+        ["Operating Expenses (Showroom Rent, Delivery, Staff, Utilities)", f"(ETB {opex:,.2f})"],
+        ["Net Operating Profit", f"ETB {net_p:,.2f}"],
     ]
     _draw_pdf_table(pdf, ["Financial Line Item", "Amount (ETB)"], pnl_rows, font_size=8.5, col_widths=[130, 60])
 
     pdf.ln(6)
     pdf.set_font(f_name, 'B', 10)
     pdf.set_text_color(*NAVY)
-    pdf.cell(0, 7, "2. Ethiopian Tax & Balance Sheet Snapshot", ln=True)
-    tax_rows = [
-        ["Output VAT Collected on Sales (15%)", f"ETB {vat_out:,.2f}"],
-        ["Input VAT Paid on Purchases (15%)", f"ETB {vat_in:,.2f}"],
-        ["Net VAT Payable to ERCA / MoR", f"ETB {net_vat_payable:,.2f}"],
-        ["Estimated Corporate Profit Tax Reserve (30%)", f"ETB {est_profit_tax:,.2f}"],
-        ["Current Closing Inventory Valuation", f"ETB {stock_val:,.2f}"],
-        ["Total Fixed Factory & Office Assets", f"ETB {asset_val:,.2f}"],
+    pdf.cell(0, 7, "2. Inventory & Asset Summary", ln=True)
+    bal_rows = [
+        ["Closing Showroom & Warehouse Stock Value", f"ETB {stock_val:,.2f}"],
+        ["Total Showroom & Office Fixed Assets", f"ETB {asset_val:,.2f}"],
     ]
-    _draw_pdf_table(pdf, ["Tax / Balance Sheet Metric", "Amount (ETB)"], tax_rows, font_size=8.5, col_widths=[130, 60])
+    _draw_pdf_table(pdf, ["Balance Sheet Metric", "Amount (ETB)"], bal_rows, font_size=8.5, col_widths=[130, 60])
     _draw_total_banner(pdf, "Net Operating Profit", net_p)
     return bytes(pdf.output())
 
@@ -547,7 +532,7 @@ def generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, va
 def generate_treasury_pdf(period_label, summary_rows, ledger_df):
     pdf = _init_pdf()
     pdf.add_page()
-    _draw_pdf_header(pdf, "3-Account Treasury & Owner Equity Statement", f"Period: {period_label}")
+    _draw_pdf_header(pdf, "3-Account Treasury & Co-Owner Balance Statement", f"Period: {period_label}")
     f_name = pdf.font_name
     NAVY = (31, 56, 100)
 
@@ -584,7 +569,7 @@ def generate_treasury_pdf(period_label, summary_rows, ledger_df):
 def generate_stock_audit_pdf(period_label, in_qty, out_qty, clo_qty, clo_val, per_item_df, sig_sk, sig_mgr):
     pdf = _init_pdf()
     pdf.add_page()
-    _draw_pdf_header(pdf, "Stock Audit & Physical Reconciliation Sheet", f"Period: {period_label}")
+    _draw_pdf_header(pdf, "Showroom & Warehouse Stock Audit Sheet", f"Period: {period_label}")
     f_name = pdf.font_name
     NAVY = (31, 56, 100)
 
@@ -592,9 +577,9 @@ def generate_stock_audit_pdf(period_label, in_qty, out_qty, clo_qty, clo_val, pe
     pdf.ln(6)
     pdf.set_font(f_name, 'B', 10)
     pdf.set_text_color(*NAVY)
-    pdf.cell(0, 7, f"Stock In: {in_qty:,.0f}  |  Stock Out: {out_qty:,.0f}  |  Closing Units: {clo_qty:,.0f}", ln=True)
+    pdf.cell(0, 7, f"Total Imported/Purchased: {in_qty:,.0f}  |  Total Sold: {out_qty:,.0f}  |  On Hand: {clo_qty:,.0f}", ln=True)
 
-    headers = ["Code", "Item Name", "Category", "In", "Out", "Avail", "Unit Price", "Total (ETB)", "Status"]
+    headers = ["SKU", "Item Name", "Category", "In", "Out", "Avail", "Price", "Total (ETB)", "Status"]
     rows = []
     if not per_item_df.empty:
         for _, r in per_item_df.iterrows():
@@ -671,7 +656,7 @@ def generate_expense_credit_pdf(period_label, df_expenses, df_credit):
     pdf.ln(6)
     pdf.set_font(f_name, 'B', 10)
     pdf.set_text_color(*NAVY)
-    pdf.cell(0, 7, "2. Supplier Credit Purchases (Unpaid Payables)", ln=True)
+    pdf.cell(0, 7, "2. Local & Import Supplier Credit Purchases (Unpaid Payables)", ln=True)
     cred_rows = []
     tot_cred = 0.0
     if not df_credit.empty:
@@ -701,7 +686,7 @@ def authenticate():
                 <div class="brand-logo-badge">E</div>
                 <div>
                     <div class="brand-title">ELEGANZA</div>
-                    <div class="brand-sub">Manufacturing & Merchandising ERP</div>
+                    <div class="brand-sub">Furniture & Home Accessories ERP</div>
                 </div>
             </div>
         </div>
@@ -769,7 +754,7 @@ if authenticate():
                 {logo_html}
                 <div>
                     <div class="brand-title">ELEGANZA</div>
-                    <div class="brand-sub">Manufacturing & Merchandising ERP • Ethiopia</div>
+                    <div class="brand-sub">Furniture & Home Accessories ERP • Ethiopia (Google Sheets DB)</div>
                 </div>
             </div>
             <div class="brand-date-pill">
@@ -807,7 +792,6 @@ if authenticate():
             end_date = get_greg_from_eth(curr_eth_y, curr_eth_m, 1) - datetime.timedelta(days=1)
             period_label = f"{ETH_MONTHS[pm-1]} {py} EC"
         elif cal_mode == "This Fiscal Year (Hamle–Sene)":
-            # Ethiopian Government/Tax Fiscal Year starts Hamle 1 (Month 11)
             fy_start_y = curr_eth_y if curr_eth_m >= 11 else curr_eth_y - 1
             start_date = get_greg_from_eth(fy_start_y, 11, 1)
             end_date = pd.to_datetime(today_greg)
@@ -835,7 +819,6 @@ if authenticate():
         if pd.isna(end_date): end_date = pd.to_datetime('2100-01-01')
         st.info(f"Active Filter: **{period_label}**")
 
-        # Built-in Gregorian <-> Ethiopian Converter Utility
         with st.expander("🔄 EC ↔ GC Date Converter"):
             conv_g = st.date_input("Pick Gregorian Date:", value=today_greg)
             st.success(f"**EC:** {to_ethiopian(conv_g)}")
@@ -905,7 +888,6 @@ if authenticate():
             df_cash['Amount'] = df_cash['Amount'].apply(clean_num)
         df_cash = df_cash[df_cash['Amount'] > 0]
 
-    # Apply Date Range Filters
     def filter_by_ec_range(df):
         if df.empty or 'Parsed_Date' not in df.columns:
             return df
@@ -953,16 +935,17 @@ if authenticate():
     treasury_summary.append(["TOTAL ALL 3 ACCOUNTS", f"{tot_cap_net:,.2f}", f"{tot_sales_in:,.2f}", f"{tot_purch_out:,.2f}", f"{tot_exp_out:,.2f}", f"{tot_net_cash:,.2f}"])
 
     # =====================================================================
-    # ROLE-BASED NAVIGATION TABS
+    # ROLE-BASED NAVIGATION TABS (INCLUDING NEW PRODUCT CATALOG)
     # =====================================================================
     ALL_TABS = [
         ("exec", "📊 Exec Summary"),
+        ("catalog", "🛋️ Product Catalog"),
         ("treasury", "🏦 3-Account Cash"),
-        ("mfg", "🏭 Manufacturing & BOM"),
+        ("import_calc", "🚢 Import & Pricing Calc"),
         ("inv", "📦 Inventory Control"),
         ("sales", "🛒 Sales (Stock Out)"),
         ("stock_in", "📥 Purchases (Stock In)"),
-        ("expenses", "💸 Expenses & Tax"),
+        ("expenses", "💸 Operating Expenses"),
         ("pdf_hub", "📄 PDF Report Center"),
         ("request", "📝 Purchase Request"),
         ("purch", "✅ Purchaser & Approver")
@@ -971,11 +954,11 @@ if authenticate():
     if role == "manager":
         allowed_keys = [k for k, _ in ALL_TABS]
     elif role == "maker":
-        allowed_keys = ["request", "inv", "mfg", "pdf_hub"]
+        allowed_keys = ["request", "catalog", "inv", "import_calc", "pdf_hub"]
     elif role == "purchaser":
-        allowed_keys = ["purch", "stock_in"]
+        allowed_keys = ["purch", "stock_in", "catalog"]
     elif role == "approver":
-        allowed_keys = ["purch", "treasury", "pdf_hub"]
+        allowed_keys = ["purch", "treasury", "pdf_hub", "catalog"]
     else:
         allowed_keys = [k for k, _ in ALL_TABS]
 
@@ -1004,7 +987,7 @@ if authenticate():
 
             k5, k6, k7, k8 = st.columns(4)
             k5.metric("Combined Cash (3 Accts)", f"ETB {tot_net_cash:,.2f}")
-            k6.metric("Inventory Valuation", f"ETB {stock_val:,.2f}")
+            k6.metric("Showroom & Stock Value", f"ETB {stock_val:,.2f}")
             k7.metric("Supplier Credit Payable", f"ETB {cred_owed:,.2f}")
             low_cnt = len(df_mgmt[df_mgmt['STOCK AVAILABLE'] <= df_mgmt['MIN STOCK']]) if not df_mgmt.empty and 'MIN STOCK' in df_mgmt.columns else 0
             k8.metric("Low / Out of Stock", f"{low_cnt} SKUs")
@@ -1039,7 +1022,60 @@ if authenticate():
                 st.plotly_chart(fig_pie, use_container_width=True)
 
     # =====================================================================
-    # TAB 2: 3-ACCOUNT CASH TREASURY & QUICK ENTRY
+    # TAB 2: PRODUCT CATALOG (SHOWROOM GALLERY WITH GOOGLE SHEETS BACKEND)
+    # =====================================================================
+    if "catalog" in tab_map:
+        with tab_map["catalog"]:
+            st.subheader("🛋️ Eleganza Furniture & Home Accessories Catalog")
+            st.caption("Visual showroom catalog pulling item codes, categories, prices, and stock levels directly from your Google Sheets database.")
+
+            if not df_mgmt.empty:
+                cat_filter_col1, cat_filter_col2 = st.columns([2, 2])
+                cat_search = cat_filter_col1.text_input("🔍 Search Catalog by Item Name or SKU:", "")
+                all_cats = ["All Categories"] + sorted(df_mgmt['CATEGORY'].dropna().unique().tolist()) if 'CATEGORY' in df_mgmt.columns else ["All Categories"]
+                sel_cat_filter = cat_filter_col2.selectbox("Filter by Category:", all_cats)
+
+                cat_df = df_mgmt.copy()
+                if cat_search:
+                    cat_df = cat_df[cat_df['ITEM CODE'].astype(str).str.contains(cat_search, case=False, na=False) | cat_df['ITEM NAME'].astype(str).str.contains(cat_search, case=False, na=False)]
+                if sel_cat_filter != "All Categories":
+                    cat_df = cat_df[cat_df['CATEGORY'] == sel_cat_filter]
+
+                # Render responsive product cards in a 3-column grid
+                cols = st.columns(3)
+                for i, row in cat_df.iterrows():
+                    sku = str(row.get('ITEM CODE', ''))
+                    name = str(row.get('ITEM NAME', ''))
+                    category = str(row.get('CATEGORY', 'Furniture'))
+                    price = clean_num(row.get('price', 0))
+                    stock = clean_num(row.get('STOCK AVAILABLE', 0))
+                    status = str(row.get('STATUS', 'Available'))
+
+                    col_idx = i % 3
+                    with cols[col_idx]:
+                        # Default high-end furniture imagery placeholder based on category
+                        img_url = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
+                        if 'lighting' in category.lower() or 'chandelier' in name.lower():
+                            img_url = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80"
+                        elif 'decor' in category.lower() or 'accessory' in name.lower():
+                            img_url = "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=600&q=80"
+                        elif 'bedroom' in category.lower() or 'bed' in name.lower():
+                            img_url = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80"
+
+                        st.markdown(f"""
+                            <div class="catalog-card">
+                                <img src="{img_url}" style="width:100%; height:160px; object-fit:cover; border-radius:8px; margin-bottom:10px;">
+                                <div style="font-size:11px; color:#D4AF37; font-weight:700; text-transform:uppercase; letter-spacing:1px;">{category} • SKU: {sku}</div>
+                                <div style="font-size:16px; color:#FFFFFF; font-weight:800; margin:4px 0;">{name}</div>
+                                <div style="font-size:18px; color:#34D399; font-weight:700; margin:6px 0;">ETB {price:,.2f}</div>
+                                <div style="font-size:12px; color:#CBD5E1;">In Stock: <b>{stock:,.0f} units</b> | <span style="color:#FBBF24;">{status}</span></div>
+                            </div>
+                        """, unsafe_allow_html=True)
+            else:
+                st.info("No items found in Stock Management Google Sheet.")
+
+    # =====================================================================
+    # TAB 3: 3-ACCOUNT CASH TREASURY
     # =====================================================================
     if "treasury" in tab_map:
         with tab_map["treasury"]:
@@ -1062,7 +1098,7 @@ if authenticate():
                     """, unsafe_allow_html=True)
 
             st.dataframe(
-                pd.DataFrame(treasury_summary, columns=["Account", "Capital / Net Transfers", "Sales Collected", "Cash Purchases", "Operating Expenses", "NET LIVE BALANCE"]),
+                pd.DataFrame(treasury_summary, columns=["Account", "Capital / Net Transfers", "Sales Collected", "Purchases Paid", "Operating Expenses", "NET LIVE BALANCE"]),
                 use_container_width=True, hide_index=True
             )
 
@@ -1072,7 +1108,7 @@ if authenticate():
                     f1, f2, f3 = st.columns(3)
                     tx_acc = f1.selectbox("Account:", ACCOUNTS)
                     tx_type = f2.selectbox("Transaction Type:", ["Cash In", "Cash Out"])
-                    tx_cat = f3.selectbox("Category:", ["Capital Injection", "Owner Drawing / Dividend", "Internal Transfer", "Loan / Other"])
+                    tx_cat = f3.selectbox("Category:", ["Capital Injection", "Owner Drawing / Dividend", "Internal Transfer", "Forex / LC Deposit", "Loan / Other"])
                     f4, f5 = st.columns([1, 2])
                     tx_amt = f4.number_input("Amount (ETB):", min_value=0.0, step=100.0)
                     tx_note = f5.text_input("Reference / Notes:")
@@ -1095,48 +1131,77 @@ if authenticate():
                 st.dataframe(df_cash_filt[disp_c], use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # TAB 3: MANUFACTURING & PRODUCTION COSTING (ETHIOPIA)
+    # TAB 4: IMPORT LANDED COST & PRICING CALCULATOR
     # =====================================================================
-    if "mfg" in tab_map:
-        with tab_map["mfg"]:
-            st.subheader("🏭 Ethiopian Manufacturing & Production Batch Calculator")
-            st.caption("Calculate raw material consumption, direct factory labor, overhead, and 15% VAT selling price for manufactured batches.")
+    if "import_calc" in tab_map:
+        with tab_map["import_calc"]:
+            st.subheader("🚢 Import Landed Cost & Furniture/Accessory Retail Pricing")
+            st.caption("Calculate true landed cost in ETB for imported furniture & home accessories (FX rate, freight, customs duty) or local supplier markups.")
 
-            m_c1, m_c2 = st.columns([1.2, 1])
-            with m_c1:
-                prod_name = st.text_input("Manufactured Product Name / Batch:", "Custom Luxury Sofa Set (Batch #01)")
-                batch_qty = st.number_input("Batch Output Quantity (Units):", min_value=1, value=5, step=1)
-                raw_mat_cost = st.number_input("Total Raw Materials Cost (Timber, Fabric, Foam, Hardware - ETB):", min_value=0.0, value=45000.0, step=500.0)
-                direct_labor = st.number_input("Direct Workshop Labor & Craftsmanship (ETB):", min_value=0.0, value=12000.0, step=500.0)
-                factory_overhead = st.number_input("Factory Overhead (Power, Machine Depreciation, Consumables - ETB):", min_value=0.0, value=4500.0, step=250.0)
-                target_margin = st.slider("Target Gross Profit Margin (%):", min_value=10, max_value=70, value=35)
+            sourcing_mode = st.radio("Sourcing Type:", ["🌍 Imported Shipment (FX + Customs + Freight)", "🇪🇹 Local Supplier Purchase (ETB Markup)"], horizontal=True)
 
-            with m_c2:
-                total_mfg_cost = raw_mat_cost + direct_labor + factory_overhead
-                unit_mfg_cost = total_mfg_cost / batch_qty
-                suggested_unit_price = unit_mfg_cost / (1 - (target_margin / 100.0))
-                vat_15 = suggested_unit_price * 0.15
-                final_price_with_vat = suggested_unit_price + vat_15
-                batch_net_profit = (suggested_unit_price * batch_qty) - total_mfg_cost
+            ic1, ic2 = st.columns([1.25, 1])
+            if sourcing_mode.startswith("🌍"):
+                with ic1:
+                    item_label = st.text_input("Furniture / Home Accessory Item:", "Luxury Imported Chandelier / Sofa Set")
+                    imp_qty = st.number_input("Shipment Quantity (Units):", min_value=1, value=10, step=1)
+                    fob_usd = st.number_input("Supplier Invoice Price per Unit (USD $):", min_value=0.0, value=180.0, step=5.0)
+                    fx_rate = st.number_input("Exchange Rate (ETB per 1 USD):", min_value=1.0, value=128.0, step=0.5)
+                    freight_ins_etb = st.number_input("Sea/Air Freight, Djibouti Port & Inland Transport (Total ETB):", min_value=0.0, value=45000.0, step=1000.0)
+                    customs_pct = st.number_input("Total Customs Duty, Excise & Surtax Rate (%):", min_value=0.0, max_value=150.0, value=35.0, step=1.0)
+                    retail_margin = st.slider("Target Gross Profit Margin (%):", min_value=10, max_value=75, value=40)
 
-                st.metric("Total Batch Production Cost", f"ETB {total_mfg_cost:,.2f}")
-                st.metric("Unit Manufacturing Cost", f"ETB {unit_mfg_cost:,.2f} / unit")
-                st.metric("Suggested Selling Price (Excl. VAT)", f"ETB {suggested_unit_price:,.2f}")
-                st.metric("Retail Price Incl. 15% Ethiopian VAT", f"ETB {final_price_with_vat:,.2f}", f"Batch Profit: ETB {batch_net_profit:,.2f}")
+                with ic2:
+                    total_fob_etb = fob_usd * imp_qty * fx_rate
+                    customs_etb = total_fob_etb * (customs_pct / 100.0)
+                    total_landed_etb = total_fob_etb + freight_ins_etb + customs_etb
+                    unit_landed_etb = total_landed_etb / imp_qty
+                    sell_price = unit_landed_etb / (1 - (retail_margin / 100.0))
+                    total_batch_profit = (sell_price * imp_qty) - total_landed_etb
+
+                    st.metric("Total Shipment Landed Cost", f"ETB {total_landed_etb:,.2f}", f"Customs & Duty: ETB {customs_etb:,.0f}")
+                    st.metric("Landed Cost per Unit", f"ETB {unit_landed_etb:,.2f} / unit")
+                    st.metric("Showroom Selling Price", f"ETB {sell_price:,.2f}", f"Net Batch Profit: ETB {total_batch_profit:,.2f}")
+            else:
+                with ic1:
+                    loc_item = st.text_input("Local Furniture / Accessory Item:", "Local Hardwood Coffee Table / Decor")
+                    loc_qty = st.number_input("Purchase Quantity (Units):", min_value=1, value=15, step=1)
+                    loc_unit_cost = st.number_input("Local Supplier Unit Cost (ETB):", min_value=0.0, value=4500.0, step=100.0)
+                    loc_transport = st.number_input("Local Delivery & Handling Cost (Total ETB):", min_value=0.0, value=3000.0, step=200.0)
+                    loc_margin = st.slider("Target Retail Margin (%):", min_value=10, max_value=75, value=35, key="loc_m")
+
+                with ic2:
+                    tot_loc_cost = (loc_unit_cost * loc_qty) + loc_transport
+                    net_unit_cost = tot_loc_cost / loc_qty
+                    loc_sell = net_unit_cost / (1 - (loc_margin / 100.0))
+                    loc_profit = (loc_sell * loc_qty) - tot_loc_cost
+
+                    st.metric("Total Local Purchase Cost", f"ETB {tot_loc_cost:,.2f}")
+                    st.metric("Net Cost per Unit (Incl. Delivery)", f"ETB {net_unit_cost:,.2f} / unit")
+                    st.metric("Showroom Selling Price", f"ETB {loc_sell:,.2f}", f"Total Profit: ETB {loc_profit:,.2f}")
 
             st.divider()
-            st.markdown("### 🏗️ Factory & Workshop Fixed Assets (`ASSET VALUE`)")
-            if not df_assets.empty:
-                st.dataframe(df_assets, use_container_width=True, hide_index=True)
-            else:
-                st.info("No factory machinery recorded in ASSET VALUE yet.")
+            st.markdown("### 🏢 Showroom & Warehouse Fixed Assets (`ASSET VALUE` & `OFFICE ASSET`)")
+            a_c1, a_c2 = st.columns(2)
+            with a_c1:
+                st.caption("Warehouse & Display Equipment (`ASSET VALUE`)")
+                if not df_assets.empty:
+                    st.dataframe(df_assets, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No entries in ASSET VALUE.")
+            with a_c2:
+                st.caption("Showroom & Office IT Assets (`OFFICE ASSET`)")
+                if not df_office.empty:
+                    st.dataframe(df_office, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No entries in OFFICE ASSET.")
 
     # =====================================================================
-    # TAB 4: INVENTORY CONTROL
+    # TAB 5: INVENTORY CONTROL
     # =====================================================================
     if "inv" in tab_map:
         with tab_map["inv"]:
-            st.subheader("📦 Live Inventory Control (`Stock Management`)")
+            st.subheader("📦 Furniture & Home Accessories Inventory (`Stock Management`)")
             if not df_mgmt.empty:
                 f1, f2, f3 = st.columns([2, 1, 1])
                 q = f1.text_input("🔍 Search SKU or Item Name:", "")
@@ -1164,16 +1229,16 @@ if authenticate():
                 st.info("No items in Stock Management.")
 
     # =====================================================================
-    # TAB 5: SALES (STOCK OUT) + QUICK SALE ENTRY
+    # TAB 6: SALES (STOCK OUT)
     # =====================================================================
     if "sales" in tab_map:
         with tab_map["sales"]:
-            st.subheader("🛒 Customer Sales & Stock Dispatch (`Stock OUT`)")
+            st.subheader("🛒 Customer Sales & Showroom Dispatch (`Stock OUT`)")
             with st.expander("➕ Record New Customer Sale"):
                 with st.form("new_sale_form", clear_on_submit=True):
                     s1, s2, s3 = st.columns(3)
                     c_code = s1.text_input("Client Code:", "CL-001")
-                    c_name = s2.text_input("Customer / Company Name:", "")
+                    c_name = s2.text_input("Customer / Interior Client Name:", "")
                     s_acc = s3.selectbox("Deposit Account:", ACCOUNTS)
 
                     item_opts = df_mgmt['ITEM CODE'].tolist() if not df_mgmt.empty else ["SKU-101"]
@@ -1207,37 +1272,28 @@ if authenticate():
                 st.dataframe(df_out_filt[show_s], use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # TAB 6: PURCHASES (STOCK IN)
+    # TAB 7: PURCHASES (STOCK IN)
     # =====================================================================
     if "stock_in" in tab_map:
         with tab_map["stock_in"]:
-            st.subheader("📥 Stock In & Raw Material Procurement (`STOCK IN`)")
+            st.subheader("📥 Imports & Local Supplier Purchases (`STOCK IN`)")
             if not df_in_filt.empty:
                 show_i = [c for c in ['REF NO', 'Date_EC', 'ITEM NAME', 'ITEM NUMBER', 'STOCK IN', 'PRICE', 'TOTAL PRICE', 'total credit price', 'suppliers', 'Account'] if c in df_in_filt.columns]
                 st.dataframe(df_in_filt[show_i], use_container_width=True, hide_index=True)
             else:
-                st.info("No purchase records in this Ethiopian date range.")
+                st.info("No import or local purchase records in this Ethiopian date range.")
 
     # =====================================================================
-    # TAB 7: EXPENSES & ETHIOPIAN TAX
+    # TAB 8: OPERATING EXPENSES
     # =====================================================================
     if "expenses" in tab_map:
         with tab_map["expenses"]:
-            st.subheader("💸 Operating Expenses & Ethiopian 15% VAT Calculator")
-            rev_tot = df_out_filt['TOTAL PRICE'].sum() if not df_out_filt.empty else 0.0
-            purch_tot = df_in_filt['TOTAL PRICE'].sum() if not df_in_filt.empty else 0.0
-            vat_out = rev_tot * 0.15
-            vat_in = purch_tot * 0.15
+            st.subheader("💸 Operating Expenses (`cost`)")
 
-            v1, v2, v3 = st.columns(3)
-            v1.metric("Output VAT (15% on Sales)", f"ETB {vat_out:,.2f}")
-            v2.metric("Input VAT (15% on Purchases)", f"ETB {vat_in:,.2f}")
-            v3.metric("Net VAT Payable (ERCA)", f"ETB {max(0.0, vat_out - vat_in):,.2f}")
-
-            with st.expander("➕ Log New Operating Expense (`cost`)"):
+            with st.expander("➕ Log New Operating Expense"):
                 with st.form("new_exp_form", clear_on_submit=True):
                     e1, e2, e3 = st.columns(3)
-                    e_cat = e1.selectbox("Category:", ["Rent", "Utilities", "Salaries & Wages", "Raw Materials / Consumables", "Delivery & Logistics", "Marketing", "Maintenance", "Tax & License"])
+                    e_cat = e1.selectbox("Category:", ["Showroom & Warehouse Rent", "Customs & Clearing Fees", "Utilities & Internet", "Salaries & Commissions", "Customer Delivery & Transport", "Social Media & Marketing", "Maintenance", "License & Fees"])
                     e_acc = e2.selectbox("Paid From Account:", ACCOUNTS)
                     e_amt = e3.number_input("Amount (ETB):", min_value=0.0, step=50.0)
                     e_desc = st.text_input("Expense Description:")
@@ -1259,7 +1315,7 @@ if authenticate():
                 st.dataframe(df_cost_filt[show_e], use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # TAB 8: PDF REPORT CENTER (5 ONE-CLICK EXECUTIVE PDF DOWNLOADS)
+    # TAB 9: PDF REPORT CENTER (EXECUTIVE PDF REPORTS)
     # =====================================================================
     if "pdf_hub" in tab_map:
         with tab_map["pdf_hub"]:
@@ -1276,26 +1332,26 @@ if authenticate():
 
             r1, r2 = st.columns(2)
             with r1:
-                st.markdown("#### 1️⃣ Executive P&L & Ethiopian Tax Report")
-                st.write("Includes Revenue, COGS, Gross & Net Profit, 15% Output/Input VAT, and 30% Corporate Tax estimate.")
-                pnl_bytes = generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, rev * 0.15, (df_in_filt['TOTAL PRICE'].sum() if not df_in_filt.empty else 0.0) * 0.15, stock_val, asset_val)
-                st.download_button("📥 Download Executive P&L & Tax PDF", data=pnl_bytes, file_name=f"Eleganza_PnL_Tax_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+                st.markdown("#### 1️⃣ Executive P&L Report")
+                st.write("Includes Revenue, Import/Local COGS, Gross Profit, Operating Expenses, and Net Operating Profit.")
+                pnl_bytes = generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, stock_val, asset_val)
+                st.download_button("📥 Download Executive P&L PDF", data=pnl_bytes, file_name=f"Eleganza_PnL_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
 
                 st.markdown("---")
-                st.markdown("#### 2️⃣ 3-Account Treasury & Owner Balance PDF")
+                st.markdown("#### 2️⃣ 3-Account Treasury & Co-Owner Balance PDF")
                 st.write("Complete cash reconciliation for Company Account, Owner 1 Account, and Owner 2 Account.")
                 trs_bytes = generate_treasury_pdf(period_label, treasury_summary, df_cash_filt)
                 st.download_button("📥 Download 3-Account Treasury PDF", data=trs_bytes, file_name=f"Eleganza_3Account_Treasury_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
 
                 st.markdown("---")
                 st.markdown("#### 3️⃣ Customer Sales Ledger PDF")
-                st.write("Itemized customer sales, quantities, prices, and deposit accounts.")
+                st.write("Itemized showroom & wholesale sales, quantities, prices, and deposit accounts.")
                 sls_bytes = generate_sales_ledger_pdf(period_label, df_out_filt)
                 st.download_button("📥 Download Sales Ledger PDF", data=sls_bytes, file_name=f"Eleganza_Sales_Report_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", use_container_width=True)
 
             with r2:
-                st.markdown("#### 4️⃣ Stock Audit & Physical Count Sheet PDF")
-                st.write("Warehouse stock count sheet with Store Keeper & Manager signature blocks.")
+                st.markdown("#### 4️⃣ Showroom & Warehouse Stock Audit PDF")
+                st.write("Physical inventory count sheet with Store Keeper & Manager signature blocks.")
                 sig1 = st.text_input("Store Keeper Name:", user_name, key="pdf_sk")
                 sig2 = st.text_input("Manager Name:", "General Manager", key="pdf_mgr")
                 in_q = df_mgmt['STOCK IN'].sum() if not df_mgmt.empty else 0
@@ -1311,11 +1367,11 @@ if authenticate():
                 st.download_button("📥 Download Expenses & Payables PDF", data=exp_bytes, file_name=f"Eleganza_Expenses_Payables_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", use_container_width=True)
 
     # =====================================================================
-    # TAB 9: PURCHASE REQUEST (MAKER)
+    # TAB 10: PURCHASE REQUEST (MAKER)
     # =====================================================================
     if "request" in tab_map:
         with tab_map["request"]:
-            st.subheader("📝 Create Purchase Request")
+            st.subheader("📝 Create Restock / Import Request")
             if "el_pr_cart" not in st.session_state:
                 st.session_state.el_pr_cart = []
 
@@ -1354,7 +1410,7 @@ if authenticate():
                 df_cart = pd.DataFrame(st.session_state.el_pr_cart)
                 st.dataframe(df_cart, use_container_width=True, hide_index=True)
                 sup_list = df_sup['Name'].dropna().tolist() if not df_sup.empty and 'Name' in df_sup.columns else []
-                sel_sup = st.selectbox("Preferred Supplier:", ["Any Supplier"] + sup_list)
+                sel_sup = st.selectbox("Preferred Local / Import Supplier:", ["Any Supplier"] + sup_list)
                 req_note = st.text_input("Notes / Urgency:")
                 c_sub1, c_sub2 = st.columns(2)
                 if c_sub1.button("📤 Submit Purchase Request", type="primary", use_container_width=True):
@@ -1373,7 +1429,7 @@ if authenticate():
                     st.rerun()
 
     # =====================================================================
-    # TAB 10: PURCHASER & APPROVER
+    # TAB 11: PURCHASER & APPROVER
     # =====================================================================
     if "purch" in tab_map:
         with tab_map["purch"]:
@@ -1391,14 +1447,14 @@ if authenticate():
                     for r in pend: grp[r.get("Request_ID", "")].append(r)
                     sel_r = st.selectbox("Select Request ID:", sorted(grp.keys(), reverse=True))
                     if sel_r:
-                        sup_all = df_sup['Name'].dropna().tolist() if not df_sup.empty and 'Name' in df_sup.columns else ["Supplier Alpha"]
+                        sup_all = df_sup['Name'].dropna().tolist() if not df_sup.empty and 'Name' in df_sup.columns else ["Local / Import Supplier"]
                         with st.form(f"purch_form_{sel_r}"):
                             inputs = {}
                             for idx, it in enumerate(grp[sel_r]):
                                 st.markdown(f"**[{it.get('Item_Code')}] {it.get('Item_Name')}** (Req: {it.get('Requested_Qty')})")
                                 c1, c2, c3, c4 = st.columns(4)
                                 aq = c1.number_input("Actual Qty", min_value=0.0, value=clean_num(it.get('Requested_Qty', 1)), key=f"aq_{idx}")
-                                ac = c2.number_input("Unit Cost (ETB)", min_value=0.0, value=clean_num(it.get('Est_Unit_Cost', 0)), key=f"ac_{idx}")
+                                ac = c2.number_input("Unit Landed Cost (ETB)", min_value=0.0, value=clean_num(it.get('Est_Unit_Cost', 0)), key=f"ac_{idx}")
                                 pay = c3.selectbox("Payment", ["Cash", "Credit"], key=f"pay_{idx}")
                                 sup = c4.selectbox("Supplier", sup_all, key=f"sup_{idx}")
                                 acc_paid = st.selectbox("Paid From Account (if Cash):", ACCOUNTS, key=f"acc_{idx}")
@@ -1426,6 +1482,10 @@ if authenticate():
                 if not pend:
                     st.info("No pending purchase reports awaiting approval.")
                 else:
+                    groups = defaultdict(list)
+                    for r in recs if str(r.get("Status", "")).strip().lower() == "pending" else []:
+                        pass
+                    # Group pending reports
                     groups = defaultdict(list)
                     for r in pend: groups[str(r.get("Report_ID", ""))[:22]].append(r)
                     for bid, items in groups.items():
