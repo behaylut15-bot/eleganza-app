@@ -712,6 +712,182 @@ def generate_proforma_pdf(proforma_no, cust_name, cust_phone, validity_days, ite
     
     return bytes(pdf.output())
 
+def generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, stock_val, asset_val):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "Executive Profit & Loss Statement", f"Reporting Period: {period_label}")
+    f_name = pdf.font_name
+    BLACK = (10, 10, 10)
+
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "1. Merchandising Income Statement (ETB)", ln=True)
+
+    pnl_rows = [
+        ["Gross Retail & Wholesale Revenue", f"ETB {rev:,.2f}"],
+        ["Cost of Goods Sold (COGS / Import & Local Sourcing)", f"(ETB {cogs:,.2f})"],
+        ["Gross Merchandising Profit", f"ETB {gross_p:,.2f}"],
+        ["Operating Expenses (Showroom Rent, Delivery, Staff, Utilities)", f"(ETB {opex:,.2f})"],
+        ["Net Operating Profit", f"ETB {net_p:,.2f}"],
+    ]
+    _draw_pdf_table(pdf, ["Financial Line Item", "Amount (ETB)"], pnl_rows, font_size=8.5, col_widths=[130, 60])
+
+    pdf.ln(6)
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "2. Inventory & Asset Summary", ln=True)
+    bal_rows = [
+        ["Closing Showroom & Warehouse Stock Value", f"ETB {stock_val:,.2f}"],
+        ["Total Showroom & Office Fixed Assets", f"ETB {asset_val:,.2f}"],
+    ]
+    _draw_pdf_table(pdf, ["Balance Sheet Metric", "Amount (ETB)"], bal_rows, font_size=8.5, col_widths=[130, 60])
+    _draw_total_banner(pdf, "Net Operating Profit", net_p, is_final=True)
+    return bytes(pdf.output())
+
+def generate_treasury_pdf(period_label, summary_rows, ledger_df):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "3-Account Treasury & Co-Owner Balance Statement", f"Period: {period_label}")
+    f_name = pdf.font_name
+    BLACK = (10, 10, 10)
+
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "Account Balances Breakdown (Company vs. Owner 1 vs. Owner 2)", ln=True)
+
+    headers = ["Account Name", "Capital/Transfers", "Sales In", "Purchases Out", "Expenses Out", "Net Balance (ETB)"]
+    _draw_pdf_table(pdf, headers, summary_rows, font_size=7.5, col_widths=[36, 30, 30, 30, 30, 34])
+
+    pdf.ln(6)
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "Recent Treasury Capital & Inter-Account Transfers", ln=True)
+
+    l_rows = []
+    if not ledger_df.empty:
+        for _, r in ledger_df.head(40).iterrows():
+            l_rows.append([
+                str(r.get('Date_EC', r.get('Date', ''))),
+                str(r.get('Account', '')),
+                str(r.get('Type', '')),
+                str(r.get('Category', '')),
+                f"{clean_num(r.get('Amount', 0)):,.2f}",
+                str(r.get('Notes', ''))
+            ])
+    _draw_pdf_table(pdf, ["Date (EC)", "Account", "Type", "Category", "Amount", "Notes"], l_rows, font_size=6.5, col_widths=[28, 32, 20, 30, 26, 54])
+
+    total_cash = sum(clean_num(r[-1]) for r in summary_rows if r[0] != "TOTAL ALL 3 ACCOUNTS")
+    _draw_total_banner(pdf, "Combined Cash Position", total_cash, is_final=True)
+    return bytes(pdf.output())
+
+def generate_stock_audit_pdf(period_label, in_qty, out_qty, clo_qty, clo_val, per_item_df, sig_sk, sig_mgr):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "Showroom & Warehouse Stock Audit Sheet", f"Period: {period_label}")
+    f_name = pdf.font_name
+    BLACK = (10, 10, 10)
+
+    _draw_total_banner(pdf, "Total Inventory Valuation", clo_val, is_final=True)
+    pdf.ln(6)
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, f"Total Purchased: {in_qty:,.0f}  |  Total Sold: {out_qty:,.0f}  |  On Hand: {clo_qty:,.0f}", ln=True)
+
+    headers = ["SKU", "Item Name", "Category", "In", "Out", "Avail", "Price", "Total (ETB)", "Status"]
+    rows = []
+    if not per_item_df.empty:
+        for _, r in per_item_df.iterrows():
+            rows.append([
+                str(r.get('ITEM CODE', '')), str(r.get('ITEM NAME', '')), str(r.get('CATEGORY', '')),
+                f"{clean_num(r.get('STOCK IN', 0)):,.0f}", f"{clean_num(r.get('STOCK OUT', 0)):,.0f}",
+                f"{clean_num(r.get('STOCK AVAILABLE', 0)):,.0f}", f"{clean_num(r.get('price', 0)):,.2f}",
+                f"{clean_num(r.get('total price', 0)):,.2f}", str(r.get('STATUS', ''))
+            ])
+    _draw_pdf_table(pdf, headers, rows, font_size=6.2, col_widths=[18, 42, 24, 14, 14, 16, 20, 22, 20])
+
+    pdf.ln(14)
+    sig_y = pdf.get_y()
+    if sig_y > pdf.h - 35:
+        pdf.add_page()
+        sig_y = pdf.get_y() + 8
+    pdf.set_font(f_name, '', 9)
+    pdf.set_xy(15, sig_y); pdf.cell(80, 5, f"Store Keeper: {sig_sk}")
+    pdf.set_xy(15, sig_y + 8); pdf.cell(80, 5, "Signature: ______________________")
+    pdf.set_xy(110, sig_y); pdf.cell(80, 5, f"Audited By: {sig_mgr}")
+    pdf.set_xy(110, sig_y + 8); pdf.cell(80, 5, "Signature: ______________________")
+    return bytes(pdf.output())
+
+def generate_sales_ledger_pdf(period_label, df_sales):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "Customer Sales & Revenue Report", f"Period: {period_label}")
+    rows = []
+    tot_rev = 0.0
+    if not df_sales.empty:
+        for _, r in df_sales.iterrows():
+            amt = clean_num(r.get('TOTAL PRICE', 0))
+            tot_rev += amt
+            rows.append([
+                str(r.get('Date_EC', '')),
+                str(r.get('customer name ab', '')),
+                str(r.get('ITEM NAME', '')),
+                f"{clean_num(r.get('STOCK OUT', 0)):,.0f}",
+                f"{clean_num(r.get('PRICE', 0)):,.2f}",
+                f"{amt:,.2f}",
+                str(r.get('Account', ''))
+            ])
+    _draw_pdf_table(pdf, ["Date (EC)", "Customer", "Item", "Qty", "Price", "Total (ETB)", "Account"], rows, font_size=6.5, col_widths=[26, 36, 40, 14, 22, 26, 26])
+    _draw_total_banner(pdf, "Total Sales Revenue", tot_rev, is_final=True)
+    return bytes(pdf.output())
+
+def generate_expense_credit_pdf(period_label, df_expenses, df_credit):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "Operating Expenses & Supplier Payables Report", f"Period: {period_label}")
+    f_name = pdf.font_name
+    BLACK = (10, 10, 10)
+
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "1. Operating Expenses Log", ln=True)
+    exp_rows = []
+    tot_exp = 0.0
+    if not df_expenses.empty:
+        for _, r in df_expenses.iterrows():
+            amt = clean_num(r.get('amount', 0))
+            tot_exp += amt
+            exp_rows.append([
+                str(r.get('Date_EC', '')),
+                str(r.get('Category', '')),
+                str(r.get('Description', '')),
+                str(r.get('Account', '')),
+                f"{amt:,.2f}"
+            ])
+    _draw_pdf_table(pdf, ["Date (EC)", "Category", "Description", "Paid From", "Amount (ETB)"], exp_rows, font_size=6.8, col_widths=[28, 32, 66, 34, 30])
+
+    pdf.ln(6)
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "2. Local & Import Supplier Credit Purchases (Unpaid Payables)", ln=True)
+    cred_rows = []
+    tot_cred = 0.0
+    if not df_credit.empty:
+        for _, r in df_credit.iterrows():
+            camt = clean_num(r.get('total credit price', 0))
+            if camt > 0:
+                tot_cred += camt
+                cred_rows.append([
+                    str(r.get('Date_EC', '')),
+                    str(r.get('suppliers', '')),
+                    str(r.get('ITEM NUMBER', '')),
+                    f"{clean_num(r.get('STOCK IN', 0)):,.0f}",
+                    f"{camt:,.2f}"
+                ])
+    _draw_pdf_table(pdf, ["Date (EC)", "Supplier", "Item", "Qty", "Credit Owed (ETB)"], cred_rows, font_size=6.8, col_widths=[28, 46, 56, 24, 36])
+    _draw_total_banner(pdf, "Total Expenses + Credit Payables", tot_exp + tot_cred, is_final=True)
+    return bytes(pdf.output())
+
+
 # --- AUTHENTICATION ---
 def authenticate():
     if "user" in st.session_state: return True
@@ -1296,7 +1472,7 @@ if authenticate():
                 disp_c = [c for c in ['Date_EC', 'Account', 'Type', 'Category', 'Amount', 'Notes'] if c in df_cash_filt.columns]
                 st.dataframe(df_cash_filt[disp_c], use_container_width=True, hide_index=True)
 
-    # TAB 5: IMPORT CALC
+    # TAB 5: IMPORT CALC & ASSETS
     if "import_calc" in tab_map:
         with tab_map["import_calc"]:
             st.subheader("🚢 Import Landed Cost & Furniture/Accessory Retail Pricing")
@@ -1344,6 +1520,55 @@ if authenticate():
 
             st.divider()
             st.markdown("### 🏢 Showroom & Warehouse Fixed Assets (`ASSET VALUE` & `OFFICE ASSET`)")
+            
+            # --- ASSET INPUT FORM ---
+            with st.expander("➕ Add New Fixed Asset (Van, IT, Furniture)"):
+                asset_type = st.radio("Asset Category:", ["Showroom / Warehouse Asset (ASSET VALUE)", "Office / IT Asset (OFFICE ASSET)"], horizontal=True)
+                
+                if asset_type.startswith("Showroom"):
+                    with st.form("new_asset_form"):
+                        a1, a2, a3, a4 = st.columns(4)
+                        a_name = a1.text_input("Asset Name (e.g. Delivery Van):")
+                        a_cat = a2.text_input("Category (e.g. Logistics, Storage):", "Storage")
+                        a_qty = a3.number_input("Quantity:", min_value=1, value=1)
+                        a_val = a4.number_input("Unit Value (ETB):", min_value=0.0, value=10000.0, step=1000.0)
+                        a_cond = st.text_input("Condition (e.g. Excellent, Good):", "Good")
+                        
+                        if st.form_submit_button("💾 Save to ASSET VALUE Sheet", type="primary"):
+                            if a_name.strip():
+                                try:
+                                    ws = _ensure_sheet("ASSET VALUE", ["Materials", "Category", "Quantity", "Unit Value", "Total Value", "Condition"])
+                                    ws.append_row([a_name, a_cat, float(a_qty), float(a_val), float(a_qty*a_val), a_cond], value_input_option='USER_ENTERED')
+                                    st.success(f"✅ Asset '{a_name}' saved to ASSET VALUE!")
+                                    load_all_erp_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error saving asset: {e}")
+                            else:
+                                st.warning("Please enter an asset name.")
+                else:
+                    with st.form("new_office_asset_form"):
+                        b1, b2, b3, b4 = st.columns(4)
+                        b_name = b1.text_input("Asset Name (e.g. POS Laptop):")
+                        b_dept = b2.text_input("Department (e.g. Sales):", "Sales")
+                        b_qty = b3.number_input("Quantity:", min_value=1, value=1)
+                        b_val = b4.number_input("Unit Cost (ETB):", min_value=0.0, value=45000.0, step=1000.0)
+                        b_stat = st.text_input("Status (e.g. Active):", "Active")
+                        
+                        if st.form_submit_button("💾 Save to OFFICE ASSET Sheet", type="primary"):
+                            if b_name.strip():
+                                try:
+                                    ws = _ensure_sheet("OFFICE ASSET", ["ITEM", "Department", "Quantity", "Unit Cost", "Total Cost", "Status"])
+                                    ws.append_row([b_name, b_dept, float(b_qty), float(b_val), float(b_qty*b_val), b_stat], value_input_option='USER_ENTERED')
+                                    st.success(f"✅ Office Asset '{b_name}' saved to OFFICE ASSET!")
+                                    load_all_erp_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error saving asset: {e}")
+                            else:
+                                st.warning("Please enter an asset name.")
+
+            # --- DISPLAY ASSETS ---
             a_c1, a_c2 = st.columns(2)
             with a_c1:
                 st.caption("Warehouse & Display Equipment (`ASSET VALUE`)")
