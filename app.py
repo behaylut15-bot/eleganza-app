@@ -55,18 +55,8 @@ REP_HEADERS = [
     "Qty", "Unit_Cost", "Total", "Status", "Approver", "Approved_Date", "Notes"
 ]
 
-# REAL ACCOUNTS & ASSET LOCATIONS
+# REAL ACCOUNTS
 ACCOUNTS = ["Company Account", "SAMI", "JO"]
-ASSET_LOCATIONS = ["Warehouse", "Office"]
-
-ASSET_VAL_HEADERS = [
-    "Date_EC", "Asset_Name", "Location", "Account", "Category",
-    "Quantity", "Unit_Value", "Total_Value", "Condition", "Recorded_By"
-]
-OFFICE_ASSET_HEADERS = [
-    "Date_EC", "Asset_Name", "Location", "Account", "Department",
-    "Quantity", "Unit_Cost", "Total_Cost", "Status", "Recorded_By"
-]
 
 ETH_MONTHS = [
     "Meskerem", "Tikimt", "Hidar", "Tahsas", "Tir", "Yekatit",
@@ -279,34 +269,6 @@ def clean_num(val):
     except Exception:
         return 0.0
 
-def compute_fixed_assets_summary(df_wh_assets, df_off_assets):
-    """Return (warehouse_total, office_total, combined_total) as floats."""
-    wh_total = 0.0
-    if df_wh_assets is not None and not df_wh_assets.empty:
-        val_col = "Total_Value" if "Total_Value" in df_wh_assets.columns else (
-            "Total Value" if "Total Value" in df_wh_assets.columns else None
-        )
-        if val_col:
-            wh_total = float(df_wh_assets[val_col].apply(clean_num).sum())
-        elif "Quantity" in df_wh_assets.columns and "Unit Value" in df_wh_assets.columns:
-            wh_total = float(
-                (df_wh_assets["Quantity"].apply(clean_num) * df_wh_assets["Unit Value"].apply(clean_num)).sum()
-            )
-
-    off_total = 0.0
-    if df_off_assets is not None and not df_off_assets.empty:
-        cost_col = "Total_Cost" if "Total_Cost" in df_off_assets.columns else (
-            "Total Cost" if "Total Cost" in df_off_assets.columns else None
-        )
-        if cost_col:
-            off_total = float(df_off_assets[cost_col].apply(clean_num).sum())
-        elif "Quantity" in df_off_assets.columns and "Unit Cost" in df_off_assets.columns:
-            off_total = float(
-                (df_off_assets["Quantity"].apply(clean_num) * df_off_assets["Unit Cost"].apply(clean_num)).sum()
-            )
-
-    return wh_total, off_total, wh_total + off_total
-
 def get_sheet_url():
     return st.secrets.get("eleganza_url", st.secrets.get("sofabet_url", ""))
 
@@ -489,12 +451,12 @@ def get_image_bytes(img_src):
         try:
             b64_str = str(img_src).split(",")[1]
             return io.BytesIO(base64.b64decode(b64_str))
-        except Exception: return None
+        except: return None
     elif str(img_src).startswith("http"):
         try:
             req = urllib.request.Request(img_src, headers={'User-Agent': 'Mozilla/5.0'})
             return io.BytesIO(urllib.request.urlopen(req).read())
-        except Exception: return None
+        except: return None
     return None
 
 # =====================================================================
@@ -626,6 +588,7 @@ def _draw_total_banner(pdf, label, amount, is_final=False):
     f_name = pdf.font_name
     BLACK = (10, 10, 10)
     GRAY = (180, 180, 180)
+    WHITE = (255, 255, 255)
     pdf.ln(5)
     if pdf.get_y() + 18 > pdf.h - pdf.b_margin: pdf.add_page()
     box_w = 95
@@ -776,7 +739,7 @@ def generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, st
     pdf.cell(0, 7, "2. Inventory & Asset Summary", ln=True)
     bal_rows = [
         ["Closing Showroom & Warehouse Stock Value", f"ETB {stock_val:,.2f}"],
-        ["Total Warehouse & Office Fixed Assets", f"ETB {asset_val:,.2f}"],
+        ["Total Showroom & Office Fixed Assets", f"ETB {asset_val:,.2f}"],
     ]
     _draw_pdf_table(pdf, ["Balance Sheet Metric", "Amount (ETB)"], bal_rows, font_size=8.5, col_widths=[130, 60])
     _draw_total_banner(pdf, "Net Operating Profit", net_p, is_final=True)
@@ -1076,8 +1039,8 @@ if authenticate():
             "Suppliers": get_eleganza_tab(sheet, "suppliers information", "Name"),
             "Costs": get_eleganza_tab(sheet, "cost", "DATE"),
             "Cash": get_eleganza_tab(sheet, "Cash_Accounts", "Date"),
-            "Assets": get_eleganza_tab(sheet, "ASSET VALUE", "Asset_Name"),
-            "Office_Assets": get_eleganza_tab(sheet, "OFFICE ASSET", "Asset_Name"),
+            "Assets": get_eleganza_tab(sheet, "ASSET VALUE", "Materials"),
+            "Office_Assets": get_eleganza_tab(sheet, "OFFICE ASSET", "ITEM"),
         }
 
     data = load_all_erp_data()
@@ -1089,20 +1052,6 @@ if authenticate():
     df_cash = data["Cash"]
     df_assets = data["Assets"]
     df_office = data["Office_Assets"]
-
-    # Fallback anchor check if existing sheets still use legacy first-column names
-    if df_assets.empty:
-        try:
-            sh_tmp = _get_sheets_global()
-            df_assets = get_eleganza_tab(sh_tmp, "ASSET VALUE", "Materials")
-        except Exception:
-            pass
-    if df_office.empty:
-        try:
-            sh_tmp = _get_sheets_global()
-            df_office = get_eleganza_tab(sh_tmp, "OFFICE ASSET", "ITEM")
-        except Exception:
-            pass
 
     if not df_mgmt.empty:
         for c in ['MIN STOCK', 'STOCK IN', 'STOCK OUT', 'STOCK AVAILABLE', 'price', 'total price']:
@@ -1145,7 +1094,6 @@ if authenticate():
     df_cash_filt = filter_by_ec_range(df_cash)
 
     df_dyn_inv, stock_val = build_dynamic_inventory(df_in, df_out, df_mgmt)
-    wh_asset_total, off_asset_total, asset_val = compute_fixed_assets_summary(df_assets, df_office)
 
     unit_cost_map = {}
     if not df_in.empty:
@@ -1224,7 +1172,7 @@ if authenticate():
             k5, k6, k7, k8 = st.columns(4)
             k5.metric("Combined Cash (3 Accts)", f"ETB {tot_net_cash:,.2f}")
             k6.metric("Showroom & Stock Value", f"ETB {stock_val:,.2f}")
-            k7.metric("Fixed Assets (WH + Office)", f"ETB {asset_val:,.2f}", f"WH: {wh_asset_total:,.0f} | Off: {off_asset_total:,.0f}")
+            k7.metric("Supplier Credit Payable", f"ETB {cred_owed:,.2f}")
             low_cnt = len(df_dyn_inv[df_dyn_inv['STOCK AVAILABLE'] <= df_dyn_inv.get('MIN STOCK', 0)]) if not df_dyn_inv.empty else 0
             k8.metric("Low / Out of Stock", f"{low_cnt} SKUs")
 
@@ -1249,19 +1197,33 @@ if authenticate():
                 acc_names = [r[0] for r in treasury_summary[:-1]]
                 acc_vals = [max(0, clean_num(r[-1])) for r in treasury_summary[:-1]]
 
-                fig_pie = px.pie(names=acc_names, values=acc_vals, hole=0.52, color_discrete_sequence=["#FFFFFF", "#A3A3A3", "#404040"])
+                fig_pie = px.pie(
+                    names=acc_names,
+                    values=acc_vals,
+                    hole=0.52,
+                    color_discrete_sequence=["#FFFFFF", "#B8B8B8", "#666666"]
+                )
                 fig_pie.update_traces(
                     textinfo='percent+label',
-                    textfont=dict(color='black'),
+                    textposition='outside',
+                    textfont=dict(color="#FFFFFF", size=12),
                     marker=dict(line=dict(color=BLACK_BG, width=3))
                 )
                 fig_pie.update_layout(
                     template='plotly_dark',
                     paper_bgcolor=CARD_BLACK,
                     plot_bgcolor=CARD_BLACK,
-                    legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5, font=dict(color="#FFFFFF")),
-                    height=350,
-                    margin=dict(l=20, r=20, t=30, b=30)
+                    font=dict(color="#FFFFFF"),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=-0.18,
+                        xanchor="center",
+                        x=0.5,
+                        font=dict(color="#FFFFFF", size=12)
+                    ),
+                    height=360,
+                    margin=dict(l=30, r=30, t=35, b=40)
                 )
                 st.plotly_chart(fig_pie, use_container_width=True)
 
@@ -1467,7 +1429,7 @@ if authenticate():
                             lt = clean_num(it["Qty"]) * clean_num(it["Unit_Price"])
                             rows_to_save.append([f"EL-PF-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}", eth_d_pf, pf_cust.strip() or "Valued Client", pf_phone.strip(), it["Item_Code"], it["Item_Name"], float(it["Qty"]), float(it["Unit_Price"]), float(lt), float(grand_total_pf), int(pf_valid), pf_notes])
                         ws_pf.append_rows(rows_to_save, value_input_option='USER_ENTERED')
-                        st.success("✅ Saved Proforma to Google Sheets!")
+                        st.success(f"✅ Saved Proforma to Google Sheets!")
                     except Exception as e:
                         st.error(f"Could not save: {e}")
 
@@ -1571,98 +1533,72 @@ if authenticate():
                     st.metric("Showroom Selling Price", f"ETB {loc_sell:,.2f}", f"Total Profit: ETB {loc_profit:,.2f}")
 
             st.divider()
-            st.markdown("### 🏢 Warehouse & Office Fixed Assets (`ASSET VALUE` & `OFFICE ASSET`)")
+            st.markdown("### 🏢 Showroom & Warehouse Fixed Assets (`ASSET VALUE` & `OFFICE ASSET`)")
 
-            m_wh, m_off, m_tot = st.columns(3)
-            m_wh.metric("Warehouse Assets", f"ETB {wh_asset_total:,.2f}")
-            m_off.metric("Office Assets", f"ETB {off_asset_total:,.2f}")
-            m_tot.metric("Total Fixed Assets (Both)", f"ETB {asset_val:,.2f}")
+            # --- ASSET INPUT FORM ---
+            with st.expander("➕ Add New Fixed Asset (Van, IT, Furniture)"):
+                asset_type = st.radio("Asset Category:", ["Showroom / Warehouse Asset (ASSET VALUE)", "Office / IT Asset (OFFICE ASSET)"], horizontal=True)
+                register_both = st.checkbox("Register for both Warehouse & Office", value=False)
 
-            with st.expander("➕ Post New Asset (Registers Location & Account for Warehouse / Office)", expanded=True):
-                with st.form("unified_asset_form", clear_on_submit=True):
-                    f_top1, f_top2, f_top3 = st.columns(3)
-                    asset_loc = f_top1.selectbox("Target Location (Required):", ASSET_LOCATIONS)
-                    asset_acc = f_top2.selectbox("Account (Required):", ACCOUNTS)
-                    asset_name = f_top3.text_input("Asset Name (e.g., Forklift / Delivery Van / Laptop):")
+                if asset_type.startswith("Showroom"):
+                    with st.form("new_asset_form"):
+                        a1, a2, a3, a4, a5 = st.columns(5)
+                        a_name = a1.text_input("Asset Name (e.g. Delivery Van):")
+                        a_cat = a2.text_input("Category (e.g. Logistics, Storage):", "Storage")
+                        a_acc = a3.selectbox("Account:", ACCOUNTS)
+                        a_qty = a4.number_input("Quantity:", min_value=1, value=1)
+                        a_val = a5.number_input("Unit Value (ETB):", min_value=0.0, value=10000.0, step=1000.0)
+                        a_cond = st.text_input("Condition (e.g. Excellent, Good):", "Good")
 
-                    f_mid1, f_mid2, f_mid3, f_mid4 = st.columns(4)
-                    asset_group = f_mid1.text_input(
-                        "Category / Department:",
-                        value="Storage / Logistics" if asset_loc == "Warehouse" else "Administration / Sales"
-                    )
-                    asset_qty = f_mid2.number_input("Quantity:", min_value=1, value=1, step=1)
-                    asset_unit_val = f_mid3.number_input("Unit Value / Cost (ETB):", min_value=0.0, value=10000.0, step=500.0)
-                    asset_cond_status = f_mid4.text_input(
-                        "Condition / Status:",
-                        value="Good" if asset_loc == "Warehouse" else "Active"
-                    )
+                        if st.form_submit_button("💾 Save to ASSET VALUE Sheet", type="primary"):
+                            if a_name.strip():
+                                try:
+                                    ws = _ensure_sheet("ASSET VALUE", ["Materials", "Category", "Account", "Quantity", "Unit Value", "Total Value", "Condition"])
+                                    ws.append_row([a_name, a_cat, a_acc, float(a_qty), float(a_val), float(a_qty*a_val), a_cond], value_input_option='USER_ENTERED')
+                                    if register_both:
+                                        ws_off = _ensure_sheet("OFFICE ASSET", ["ITEM", "Department", "Account", "Quantity", "Unit Cost", "Total Cost", "Status"])
+                                        ws_off.append_row([a_name, a_cat, a_acc, float(a_qty), float(a_val), float(a_qty*a_val), a_cond], value_input_option='USER_ENTERED')
+                                    st.success(f"✅ Asset '{a_name}' registered under {a_acc}!")
+                                    load_all_erp_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error saving asset: {e}")
+                            else:
+                                st.warning("Please enter an asset name.")
+                else:
+                    with st.form("new_office_asset_form"):
+                        b1, b2, b3, b4, b5 = st.columns(5)
+                        b_name = b1.text_input("Asset Name (e.g. POS Laptop):")
+                        b_dept = b2.text_input("Department (e.g. Sales):", "Sales")
+                        b_acc = b3.selectbox("Account:", ACCOUNTS)
+                        b_qty = b4.number_input("Quantity:", min_value=1, value=1)
+                        b_val = b5.number_input("Unit Cost (ETB):", min_value=0.0, value=45000.0, step=1000.0)
+                        b_stat = st.text_input("Status (e.g. Active):", "Active")
 
-                    post_both_locations = st.checkbox(
-                        "Also register a matching entry in the other location (Warehouse + Office)",
-                        value=False,
-                        help="Check this if an asset entry must be registered for both Warehouse and Office."
-                    )
+                        if st.form_submit_button("💾 Save to OFFICE ASSET Sheet", type="primary"):
+                            if b_name.strip():
+                                try:
+                                    ws = _ensure_sheet("OFFICE ASSET", ["ITEM", "Department", "Account", "Quantity", "Unit Cost", "Total Cost", "Status"])
+                                    ws.append_row([b_name, b_dept, b_acc, float(b_qty), float(b_val), float(b_qty*b_val), b_stat], value_input_option='USER_ENTERED')
+                                    if register_both:
+                                        ws_wh = _ensure_sheet("ASSET VALUE", ["Materials", "Category", "Account", "Quantity", "Unit Value", "Total Value", "Condition"])
+                                        ws_wh.append_row([b_name, b_dept, b_acc, float(b_qty), float(b_val), float(b_qty*b_val), b_stat], value_input_option='USER_ENTERED')
+                                    st.success(f"✅ Office Asset '{b_name}' registered under {b_acc}!")
+                                    load_all_erp_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error saving asset: {e}")
+                            else:
+                                st.warning("Please enter an asset name.")
 
-                    submitted_asset = st.form_submit_button("💾 Post & Register Asset", type="primary", use_container_width=True)
-
-                    if submitted_asset:
-                        clean_name = asset_name.strip()
-                        if not clean_name:
-                            st.warning("Please enter an Asset Name before posting.")
-                        elif not asset_loc or not asset_acc:
-                            st.warning("Both Location and Account must be selected.")
-                        else:
-                            try:
-                                eth_stamp = to_ethiopian_short(today_greg)
-                                line_total = float(asset_qty) * float(asset_unit_val)
-                                locations_to_post = ASSET_LOCATIONS if post_both_locations else [asset_loc]
-
-                                for loc in locations_to_post:
-                                    if loc == "Warehouse":
-                                        ws_wh = _ensure_sheet("ASSET VALUE", ASSET_VAL_HEADERS)
-                                        ws_wh.append_row([
-                                            eth_stamp,
-                                            clean_name,
-                                            "Warehouse",
-                                            asset_acc,
-                                            asset_group.strip() or "Warehouse",
-                                            float(asset_qty),
-                                            float(asset_unit_val),
-                                            line_total,
-                                            asset_cond_status.strip() or "Good",
-                                            user_name
-                                        ], value_input_option='USER_ENTERED')
-                                    else:
-                                        ws_off = _ensure_sheet("OFFICE ASSET", OFFICE_ASSET_HEADERS)
-                                        ws_off.append_row([
-                                            eth_stamp,
-                                            clean_name,
-                                            "Office",
-                                            asset_acc,
-                                            asset_group.strip() or "Office",
-                                            float(asset_qty),
-                                            float(asset_unit_val),
-                                            line_total,
-                                            asset_cond_status.strip() or "Active",
-                                            user_name
-                                        ], value_input_option='USER_ENTERED')
-
-                                st.success(
-                                    f"✅ Posted '{clean_name}' ({line_total:,.2f} ETB) under Account '{asset_acc}' "
-                                    f"for: {', '.join(locations_to_post)}!"
-                                )
-                                load_all_erp_data.clear()
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error posting asset: {e}")
-
+            # --- DISPLAY ASSETS ---
             a_c1, a_c2 = st.columns(2)
             with a_c1:
-                st.caption(f"Warehouse Assets (`ASSET VALUE`) — Subtotal: ETB {wh_asset_total:,.2f}")
+                st.caption("Warehouse & Display Equipment (`ASSET VALUE`)")
                 if not df_assets.empty: st.dataframe(df_assets, use_container_width=True, hide_index=True)
                 else: st.info("No entries in ASSET VALUE.")
             with a_c2:
-                st.caption(f"Office Assets (`OFFICE ASSET`) — Subtotal: ETB {off_asset_total:,.2f}")
+                st.caption("Showroom & Office IT Assets (`OFFICE ASSET`)")
                 if not df_office.empty: st.dataframe(df_office, use_container_width=True, hide_index=True)
                 else: st.info("No entries in OFFICE ASSET.")
 
@@ -1772,6 +1708,7 @@ if authenticate():
             gross_p = rev - cogs
             opex = df_cost_filt['amount'].sum() if not df_cost_filt.empty else 0.0
             net_p = gross_p - opex
+            asset_val = (df_assets['Total Value'].apply(clean_num).sum() if not df_assets.empty and 'Total Value' in df_assets.columns else 0.0) + (df_office['Total Cost'].apply(clean_num).sum() if not df_office.empty and 'Total Cost' in df_office.columns else 0.0)
 
             r1, r2 = st.columns(2)
             with r1:
