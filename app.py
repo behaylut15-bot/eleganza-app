@@ -27,6 +27,11 @@ _REQ_HDRS = [
 ]
 REP_SHEET = "Purchase_Reports"
 REQ_SHEET = "Purchase_Requests"
+PROFORMA_SHEET = "Proforma_Invoices"
+PROFORMA_HEADERS = [
+    "Proforma_No", "Date_EC", "Customer_Name", "Customer_Phone",
+    "Item_Code", "Item_Name", "Qty", "Unit_Price", "Line_Total", "Grand_Total", "Validity_Days", "Notes"
+]
 REP_HEADERS = [
     "Report_ID", "Submitted_Date", "Supplier_Name",
     "Payment_Type", "Item_Code", "Item_Name", "Measure",
@@ -47,6 +52,13 @@ try:
     font_ready = True
 except Exception:
     font_ready = False
+
+# --- LOGO HELPER (SUPPORTS logo.png OR logo.jpg) ---
+def get_logo_path():
+    for fname in ["logo.png", "logo.jpg", "logo.jpeg"]:
+        if os.path.exists(fname):
+            return fname
+    return None
 
 # --- MODERN LUXURY DARK-NAVY & GOLD UI THEME ---
 st.markdown("""
@@ -342,7 +354,7 @@ def get_eleganza_tab(sheet, tab_name, anchor_col):
         return pd.DataFrame()
 
 # =====================================================================
-# PROFESSIONAL PDF REPORT SUITE (EXECUTIVE, TREASURY, STOCK, SALES, EXPENSES)
+# PROFESSIONAL PDF REPORT SUITE (EXECUTIVE, TREASURY, STOCK, SALES, EXPENSES, PROFORMA)
 # =====================================================================
 class EleganzaReportPDF(FPDF):
     def __init__(self, font_name='Helvetica'):
@@ -383,9 +395,10 @@ def _draw_pdf_header(pdf, title, subtitle):
     pdf.rect(0, 20, pdf.w, 1.5, 'F')
 
     text_x = 10
-    if os.path.exists('logo.jpg'):
+    logo_file = get_logo_path()
+    if logo_file:
         try:
-            pdf.image('logo.jpg', x=10, y=3, w=14, h=14)
+            pdf.image(logo_file, x=10, y=3, w=14, h=14)
             text_x = 27
         except Exception:
             text_x = 10
@@ -466,7 +479,8 @@ def _draw_pdf_table(pdf, headers, rows, font_size=6.5, col_widths=None):
         pdf.set_fill_color(*(LIGHT_GRAY if i % 2 == 0 else WHITE))
         pdf.set_x(10)
         for item, w in zip(row, col_widths):
-            s = str(item).strip().replace('\n', ' ')
+            s = str(item).strip().replace('
+', ' ')
             if s.lower() in ('nan', 'none'): s = ''
             while pdf.get_string_width(s) > (w - 1.5) and len(s) > 1:
                 s = s[:-1]
@@ -494,6 +508,46 @@ def _draw_total_banner(pdf, label, amount):
     pdf.set_font(f_name, 'B', 11.5)
     pdf.set_text_color(*WHITE)
     pdf.cell(box_w - 10, 6, f"ETB {amount:,.2f}", ln=True, align='R')
+
+# Proforma Invoice PDF Generator
+def generate_proforma_pdf(proforma_no, cust_name, cust_phone, validity_days, items_list, notes_txt):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, f"PROFORMA INVOICE  #{proforma_no}", f"Prepared For: {cust_name}  |  Phone: {cust_phone or 'N/A'}  |  Valid: {validity_days} Days")
+    f_name = pdf.font_name
+    NAVY = (31, 56, 100)
+
+    pdf.set_font(f_name, 'B', 9.5)
+    pdf.set_text_color(*NAVY)
+    pdf.cell(0, 7, "Itemized Furniture & Home Accessories Quotation (ETB)", ln=True)
+
+    rows = []
+    grand_total = 0.0
+    for idx, it in enumerate(items_list, start=1):
+        lt = clean_num(it['Qty']) * clean_num(it['Unit_Price'])
+        grand_total += lt
+        rows.append([
+            str(idx),
+            str(it['Item_Code']),
+            str(it['Item_Name']),
+            f"{clean_num(it['Qty']):,.0f}",
+            f"{clean_num(it['Unit_Price']):,.2f}",
+            f"{lt:,.2f}"
+        ])
+
+    _draw_pdf_table(pdf, ["#", "SKU", "Item Description", "Qty", "Unit Price (ETB)", "Line Total (ETB)"], rows, font_size=7.5, col_widths=[12, 26, 76, 18, 36, 42])
+
+    if notes_txt:
+        pdf.ln(5)
+        pdf.set_font(f_name, 'B', 8.5)
+        pdf.set_text_color(*NAVY)
+        pdf.cell(0, 6, "Terms & Notes:", ln=True)
+        pdf.set_font(f_name, '', 8)
+        pdf.set_text_color(60, 60, 60)
+        pdf.multi_cell(0, 5, str(notes_txt))
+
+    _draw_total_banner(pdf, "Proforma Grand Total", grand_total)
+    return bytes(pdf.output())
 
 # 1. Executive P&L PDF
 def generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, stock_val, asset_val):
@@ -741,12 +795,14 @@ if authenticate():
     eth_today_str = f"{ETH_MONTHS[curr_eth_m-1]} {curr_eth_d}, {curr_eth_y} EC"
     greg_today_str = today_greg.strftime("%b %d, %Y")
 
-    # Compact Header with Small Logo Badge
+    # Compact Header with Company Logo if present
     logo_html = '<div class="brand-logo-badge">E</div>'
-    if os.path.exists('logo.jpg'):
-        with open('logo.jpg', 'rb') as img_f:
+    logo_file = get_logo_path()
+    if logo_file:
+        with open(logo_file, 'rb') as img_f:
             b64_logo = base64.b64encode(img_f.read()).decode()
-            logo_html = f'<img src="data:image/jpeg;base64,{b64_logo}" style="width:42px; height:42px; border-radius:8px; border:1px solid #D4AF37; object-fit:cover;">'
+            mime_sub = "png" if logo_file.endswith(".png") else "jpeg"
+            logo_html = f'<img src="data:image/{mime_sub};base64,{b64_logo}" style="width:42px; height:42px; border-radius:8px; border:1px solid #D4AF37; object-fit:contain; background:#fff; padding:2px;">'
 
     st.markdown(f"""
         <div class="brand-header">
@@ -935,11 +991,12 @@ if authenticate():
     treasury_summary.append(["TOTAL ALL 3 ACCOUNTS", f"{tot_cap_net:,.2f}", f"{tot_sales_in:,.2f}", f"{tot_purch_out:,.2f}", f"{tot_exp_out:,.2f}", f"{tot_net_cash:,.2f}"])
 
     # =====================================================================
-    # ROLE-BASED NAVIGATION TABS (INCLUDING NEW PRODUCT CATALOG)
+    # ROLE-BASED NAVIGATION TABS (INCLUDING PRODUCT CATALOG & PROFORMA MAKER)
     # =====================================================================
     ALL_TABS = [
         ("exec", "📊 Exec Summary"),
         ("catalog", "🛋️ Product Catalog"),
+        ("proforma", "📑 Proforma Maker"),
         ("treasury", "🏦 3-Account Cash"),
         ("import_calc", "🚢 Import & Pricing Calc"),
         ("inv", "📦 Inventory Control"),
@@ -954,11 +1011,11 @@ if authenticate():
     if role == "manager":
         allowed_keys = [k for k, _ in ALL_TABS]
     elif role == "maker":
-        allowed_keys = ["request", "catalog", "inv", "import_calc", "pdf_hub"]
+        allowed_keys = ["request", "catalog", "proforma", "inv", "import_calc", "pdf_hub"]
     elif role == "purchaser":
-        allowed_keys = ["purch", "stock_in", "catalog"]
+        allowed_keys = ["purch", "stock_in", "catalog", "proforma"]
     elif role == "approver":
-        allowed_keys = ["purch", "treasury", "pdf_hub", "catalog"]
+        allowed_keys = ["purch", "treasury", "proforma", "pdf_hub", "catalog"]
     else:
         allowed_keys = [k for k, _ in ALL_TABS]
 
@@ -1022,14 +1079,28 @@ if authenticate():
                 st.plotly_chart(fig_pie, use_container_width=True)
 
     # =====================================================================
-    # TAB 2: PRODUCT CATALOG (SHOWROOM GALLERY WITH GOOGLE SHEETS BACKEND)
+    # TAB 2: PRODUCT CATALOG (SHOWROOM GALLERY WITH CUSTOM IMAGE SUPPORT)
     # =====================================================================
     if "catalog" in tab_map:
         with tab_map["catalog"]:
             st.subheader("🛋️ Eleganza Furniture & Home Accessories Catalog")
-            st.caption("Visual showroom catalog pulling item codes, categories, prices, and stock levels directly from your Google Sheets database.")
+            st.caption("Pulls item codes, categories, prices, and stock levels from Google Sheets (`Stock Management`). Add an `Image_URL` column in your sheet or set custom session image overrides below.")
+
+            if "custom_catalog_imgs" not in st.session_state:
+                st.session_state.custom_catalog_imgs = {}
 
             if not df_mgmt.empty:
+                with st.expander("🖼️ Change / Override Catalog Image for Any SKU"):
+                    ov_c1, ov_c2, ov_c3 = st.columns([2, 3, 1])
+                    sku_list_cat = df_mgmt['ITEM CODE'].astype(str).tolist()
+                    sel_ov_sku = ov_c1.selectbox("Select SKU:", sku_list_cat, key="ov_sku_sel")
+                    new_img_url = ov_c2.text_input("Paste Image URL (or direct image link):", value=st.session_state.custom_catalog_imgs.get(sel_ov_sku, ""), key="ov_url_inp")
+                    if ov_c3.button("Apply Image", type="primary", use_container_width=True):
+                        if new_img_url.strip():
+                            st.session_state.custom_catalog_imgs[sel_ov_sku] = new_img_url.strip()
+                            st.success(f"Updated image for {sel_ov_sku}")
+                            st.rerun()
+
                 cat_filter_col1, cat_filter_col2 = st.columns([2, 2])
                 cat_search = cat_filter_col1.text_input("🔍 Search Catalog by Item Name or SKU:", "")
                 all_cats = ["All Categories"] + sorted(df_mgmt['CATEGORY'].dropna().unique().tolist()) if 'CATEGORY' in df_mgmt.columns else ["All Categories"]
@@ -1041,19 +1112,22 @@ if authenticate():
                 if sel_cat_filter != "All Categories":
                     cat_df = cat_df[cat_df['CATEGORY'] == sel_cat_filter]
 
-                # Render responsive product cards in a 3-column grid
                 cols = st.columns(3)
-                for i, row in cat_df.iterrows():
-                    sku = str(row.get('ITEM CODE', ''))
+                for i, (_, row) in enumerate(cat_df.iterrows()):
+                    sku = str(row.get('ITEM CODE', '')).strip()
                     name = str(row.get('ITEM NAME', ''))
                     category = str(row.get('CATEGORY', 'Furniture'))
                     price = clean_num(row.get('price', 0))
                     stock = clean_num(row.get('STOCK AVAILABLE', 0))
                     status = str(row.get('STATUS', 'Available'))
 
-                    col_idx = i % 3
-                    with cols[col_idx]:
-                        # Default high-end furniture imagery placeholder based on category
+                    # Priority: 1) Session override, 2) Sheet Image_URL column if present, 3) Category default
+                    sheet_img = str(row.get('Image_URL', '')).strip() if 'Image_URL' in row and pd.notna(row.get('Image_URL')) else ""
+                    if sku in st.session_state.custom_catalog_imgs:
+                        img_url = st.session_state.custom_catalog_imgs[sku]
+                    elif sheet_img.startswith("http"):
+                        img_url = sheet_img
+                    else:
                         img_url = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
                         if 'lighting' in category.lower() or 'chandelier' in name.lower():
                             img_url = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80"
@@ -1062,6 +1136,8 @@ if authenticate():
                         elif 'bedroom' in category.lower() or 'bed' in name.lower():
                             img_url = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80"
 
+                    col_idx = i % 3
+                    with cols[col_idx]:
                         st.markdown(f"""
                             <div class="catalog-card">
                                 <img src="{img_url}" style="width:100%; height:160px; object-fit:cover; border-radius:8px; margin-bottom:10px;">
@@ -1075,7 +1151,93 @@ if authenticate():
                 st.info("No items found in Stock Management Google Sheet.")
 
     # =====================================================================
-    # TAB 3: 3-ACCOUNT CASH TREASURY
+    # TAB 3: PROFORMA MAKER (QUOTATION & PDF GENERATOR)
+    # =====================================================================
+    if "proforma" in tab_map:
+        with tab_map["proforma"]:
+            st.subheader("📑 Proforma Invoice Maker")
+            st.caption("Build customer quotations for furniture & home accessories, save to Google Sheets (`Proforma_Invoices`), and download a branded Proforma PDF.")
+
+            if "el_proforma_items" not in st.session_state:
+                st.session_state.el_proforma_items = []
+
+            pf_c1, pf_c2, pf_c3 = st.columns(3)
+            pf_cust = pf_c1.text_input("Customer / Company Name:", placeholder="e.g. Bole Luxury Homes")
+            pf_phone = pf_c2.text_input("Customer Phone:", placeholder="e.g. +251 91 100 0000")
+            pf_valid = pf_c3.number_input("Validity (Days):", min_value=1, max_value=90, value=15)
+
+            st.markdown("#### ➕ Add Item to Proforma")
+            add_c1, add_c2, add_c3, add_c4 = st.columns([3, 1, 1.5, 1])
+            sku_choices = df_mgmt['ITEM CODE'].astype(str).tolist() if not df_mgmt.empty else ["CUSTOM"]
+            pf_sku = add_c1.selectbox("Select SKU from Catalog:", sku_choices, key="pf_sku_box")
+            pf_qty = add_c2.number_input("Qty:", min_value=1, value=1, step=1, key="pf_qty_box")
+            def_pf_price = float(df_mgmt[df_mgmt['ITEM CODE'].astype(str) == pf_sku]['price'].iloc[0]) if not df_mgmt.empty and pf_sku in df_mgmt['ITEM CODE'].astype(str).values else 0.0
+            pf_price = add_c3.number_input("Unit Price (ETB):", min_value=0.0, value=def_pf_price, step=50.0, key="pf_price_box")
+
+            if add_c4.button("Add Item", type="primary", use_container_width=True):
+                iname_pf = str(df_mgmt[df_mgmt['ITEM CODE'].astype(str) == pf_sku]['ITEM NAME'].iloc[0]) if not df_mgmt.empty and pf_sku in df_mgmt['ITEM CODE'].astype(str).values else pf_sku
+                st.session_state.el_proforma_items.append({
+                    "Item_Code": pf_sku,
+                    "Item_Name": iname_pf,
+                    "Qty": pf_qty,
+                    "Unit_Price": pf_price
+                })
+                st.rerun()
+
+            pf_notes = st.text_area("Delivery / Payment Terms & Notes:", value="50% advance upon confirmation, 50% prior to delivery in Addis Ababa.", height=70)
+
+            if st.session_state.el_proforma_items:
+                pf_df = pd.DataFrame(st.session_state.el_proforma_items)
+                pf_df["Line_Total"] = pf_df["Qty"] * pf_df["Unit_Price"]
+                st.dataframe(
+                    pf_df.style.format({"Qty": "{:,.0f}", "Unit_Price": "ETB {:,.2f}", "Line_Total": "ETB {:,.2f}"}),
+                    use_container_width=True, hide_index=True
+                )
+                grand_tot_pf = pf_df["Line_Total"].sum()
+                st.metric("Proforma Grand Total", f"ETB {grand_tot_pf:,.2f}")
+
+                pf_no = f"EL-PF-{datetime.datetime.now().strftime('%Y%m%d%H%M')}"
+                pdf_pf_bytes = generate_proforma_pdf(
+                    pf_no,
+                    pf_cust.strip() or "Valued Client",
+                    pf_phone.strip(),
+                    pf_valid,
+                    st.session_state.el_proforma_items,
+                    pf_notes
+                )
+
+                b_col1, b_col2, b_col3 = st.columns(3)
+                b_col1.download_button(
+                    "📥 Download Proforma PDF",
+                    data=pdf_pf_bytes,
+                    file_name=f"{pf_no}.pdf",
+                    mime="application/pdf",
+                    type="primary",
+                    use_container_width=True
+                )
+                if b_col2.button("💾 Save Proforma to Google Sheets", use_container_width=True):
+                    try:
+                        ws_pf = _ensure_sheet(PROFORMA_SHEET, PROFORMA_HEADERS)
+                        eth_d_pf = to_ethiopian_short(today_greg)
+                        rows_to_save = []
+                        for it in st.session_state.el_proforma_items:
+                            lt = clean_num(it["Qty"]) * clean_num(it["Unit_Price"])
+                            rows_to_save.append([
+                                pf_no, eth_d_pf, pf_cust.strip() or "Valued Client", pf_phone.strip(),
+                                it["Item_Code"], it["Item_Name"], float(it["Qty"]), float(it["Unit_Price"]),
+                                float(lt), float(grand_tot_pf), int(pf_valid), pf_notes
+                            ])
+                        ws_pf.append_rows(rows_to_save, value_input_option='USER_ENTERED')
+                        st.success(f"✅ Saved Proforma {pf_no} to Google Sheets!")
+                    except Exception as e:
+                        st.error(f"Could not save to Google Sheets: {e}")
+
+                if b_col3.button("🗑️ Clear Proforma Items", use_container_width=True):
+                    st.session_state.el_proforma_items = []
+                    st.rerun()
+
+    # =====================================================================
+    # TAB 4: 3-ACCOUNT CASH TREASURY
     # =====================================================================
     if "treasury" in tab_map:
         with tab_map["treasury"]:
@@ -1131,7 +1293,7 @@ if authenticate():
                 st.dataframe(df_cash_filt[disp_c], use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # TAB 4: IMPORT LANDED COST & PRICING CALCULATOR
+    # TAB 5: IMPORT LANDED COST & PRICING CALCULATOR
     # =====================================================================
     if "import_calc" in tab_map:
         with tab_map["import_calc"]:
@@ -1197,7 +1359,7 @@ if authenticate():
                     st.info("No entries in OFFICE ASSET.")
 
     # =====================================================================
-    # TAB 5: INVENTORY CONTROL
+    # TAB 6: INVENTORY CONTROL
     # =====================================================================
     if "inv" in tab_map:
         with tab_map["inv"]:
@@ -1229,7 +1391,7 @@ if authenticate():
                 st.info("No items in Stock Management.")
 
     # =====================================================================
-    # TAB 6: SALES (STOCK OUT)
+    # TAB 7: SALES (STOCK OUT)
     # =====================================================================
     if "sales" in tab_map:
         with tab_map["sales"]:
@@ -1272,7 +1434,7 @@ if authenticate():
                 st.dataframe(df_out_filt[show_s], use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # TAB 7: PURCHASES (STOCK IN)
+    # TAB 8: PURCHASES (STOCK IN)
     # =====================================================================
     if "stock_in" in tab_map:
         with tab_map["stock_in"]:
@@ -1284,7 +1446,7 @@ if authenticate():
                 st.info("No import or local purchase records in this Ethiopian date range.")
 
     # =====================================================================
-    # TAB 8: OPERATING EXPENSES
+    # TAB 9: OPERATING EXPENSES
     # =====================================================================
     if "expenses" in tab_map:
         with tab_map["expenses"]:
@@ -1315,7 +1477,7 @@ if authenticate():
                 st.dataframe(df_cost_filt[show_e], use_container_width=True, hide_index=True)
 
     # =====================================================================
-    # TAB 9: PDF REPORT CENTER (EXECUTIVE PDF REPORTS)
+    # TAB 10: PDF REPORT CENTER (EXECUTIVE PDF REPORTS)
     # =====================================================================
     if "pdf_hub" in tab_map:
         with tab_map["pdf_hub"]:
@@ -1347,7 +1509,7 @@ if authenticate():
                 st.markdown("#### 3️⃣ Customer Sales Ledger PDF")
                 st.write("Itemized showroom & wholesale sales, quantities, prices, and deposit accounts.")
                 sls_bytes = generate_sales_ledger_pdf(period_label, df_out_filt)
-                st.download_button("📥 Download Sales Ledger PDF", data=sls_bytes, file_name=f"Eleganza_Sales_Report_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", use_container_width=True)
+                st.download_button("📥 Download Sales Ledger PDF", data=sls_bytes, file_name=f"Eleganza_Sales_Report_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
 
             with r2:
                 st.markdown("#### 4️⃣ Showroom & Warehouse Stock Audit PDF")
@@ -1364,10 +1526,10 @@ if authenticate():
                 st.markdown("#### 5️⃣ Operating Expenses & Supplier Payables PDF")
                 st.write("Full breakdown of operational costs and unpaid credit balances owed to suppliers.")
                 exp_bytes = generate_expense_credit_pdf(period_label, df_cost_filt, df_in_filt)
-                st.download_button("📥 Download Expenses & Payables PDF", data=exp_bytes, file_name=f"Eleganza_Expenses_Payables_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", use_container_width=True)
+                st.download_button("📥 Download Expenses & Payables PDF", data=exp_bytes, file_name=f"Eleganza_Expenses_Payables_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
 
     # =====================================================================
-    # TAB 10: PURCHASE REQUEST (MAKER)
+    # TAB 11: PURCHASE REQUEST (MAKER)
     # =====================================================================
     if "request" in tab_map:
         with tab_map["request"]:
@@ -1429,7 +1591,7 @@ if authenticate():
                     st.rerun()
 
     # =====================================================================
-    # TAB 11: PURCHASER & APPROVER
+    # TAB 12: PURCHASER & APPROVER
     # =====================================================================
     if "purch" in tab_map:
         with tab_map["purch"]:
@@ -1482,10 +1644,6 @@ if authenticate():
                 if not pend:
                     st.info("No pending purchase reports awaiting approval.")
                 else:
-                    groups = defaultdict(list)
-                    for r in recs if str(r.get("Status", "")).strip().lower() == "pending" else []:
-                        pass
-                    # Group pending reports
                     groups = defaultdict(list)
                     for r in pend: groups[str(r.get("Report_ID", ""))[:22]].append(r)
                     for bid, items in groups.items():
