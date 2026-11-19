@@ -74,7 +74,7 @@ try:
 except Exception:
     font_ready = False
 
-# --- ELEGANZA HOMES PURE BLACK LUXURY UI THEME (FIGTREE FONT RESTORED) ---
+# --- ELEGANZA HOMES PURE BLACK LUXURY UI THEME (FIGTREE FONT) ---
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap');
@@ -625,6 +625,74 @@ def generate_proforma_pdf(proforma_no, cust_name, cust_phone, validity_days, ite
     _draw_total_banner(pdf, "Proforma Grand Total", grand_total)
     return bytes(pdf.output())
 
+def generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, stock_val, asset_val):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "Executive Profit & Loss Statement", f"Reporting Period: {period_label}")
+    f_name = pdf.font_name
+    BLACK = (10, 10, 10)
+
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "1. Merchandising Income Statement (ETB)", ln=True)
+
+    pnl_rows = [
+        ["Gross Retail & Wholesale Revenue", f"ETB {rev:,.2f}"],
+        ["Cost of Goods Sold (COGS / Import & Local Sourcing)", f"(ETB {cogs:,.2f})"],
+        ["Gross Merchandising Profit", f"ETB {gross_p:,.2f}"],
+        ["Operating Expenses (Showroom Rent, Delivery, Staff, Utilities)", f"(ETB {opex:,.2f})"],
+        ["Net Operating Profit", f"ETB {net_p:,.2f}"],
+    ]
+    _draw_pdf_table(pdf, ["Financial Line Item", "Amount (ETB)"], pnl_rows, font_size=8.5, col_widths=[130, 60])
+
+    pdf.ln(6)
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "2. Inventory & Asset Summary", ln=True)
+    bal_rows = [
+        ["Closing Showroom & Warehouse Stock Value", f"ETB {stock_val:,.2f}"],
+        ["Total Showroom & Office Fixed Assets", f"ETB {asset_val:,.2f}"],
+    ]
+    _draw_pdf_table(pdf, ["Balance Sheet Metric", "Amount (ETB)"], bal_rows, font_size=8.5, col_widths=[130, 60])
+    _draw_total_banner(pdf, "Net Operating Profit", net_p)
+    return bytes(pdf.output())
+
+def generate_treasury_pdf(period_label, summary_rows, ledger_df):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "3-Account Treasury & Co-Owner Balance Statement", f"Period: {period_label}")
+    f_name = pdf.font_name
+    BLACK = (10, 10, 10)
+
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "Account Balances Breakdown (Company vs. Owner 1 vs. Owner 2)", ln=True)
+
+    headers = ["Account Name", "Capital/Transfers", "Sales In", "Purchases Out", "Expenses Out", "Net Balance (ETB)"]
+    _draw_pdf_table(pdf, headers, summary_rows, font_size=7.5, col_widths=[36, 30, 30, 30, 30, 34])
+
+    pdf.ln(6)
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "Recent Treasury Capital & Inter-Account Transfers", ln=True)
+
+    l_rows = []
+    if not ledger_df.empty:
+        for _, r in ledger_df.head(40).iterrows():
+            l_rows.append([
+                str(r.get('Date_EC', r.get('Date', ''))),
+                str(r.get('Account', '')),
+                str(r.get('Type', '')),
+                str(r.get('Category', '')),
+                f"{clean_num(r.get('Amount', 0)):,.2f}",
+                str(r.get('Notes', ''))
+            ])
+    _draw_pdf_table(pdf, ["Date (EC)", "Account", "Type", "Category", "Amount", "Notes"], l_rows, font_size=6.5, col_widths=[28, 32, 20, 30, 26, 54])
+
+    total_cash = sum(clean_num(r[-1]) for r in summary_rows if r[0] != "TOTAL ALL 3 ACCOUNTS")
+    _draw_total_banner(pdf, "Combined Cash Position", total_cash)
+    return bytes(pdf.output())
+
 def generate_stock_audit_pdf(period_label, in_qty, out_qty, clo_qty, clo_val, per_item_df, sig_sk, sig_mgr):
     pdf = _init_pdf()
     pdf.add_page()
@@ -661,6 +729,77 @@ def generate_stock_audit_pdf(period_label, in_qty, out_qty, clo_qty, clo_val, pe
     pdf.set_xy(110, sig_y); pdf.cell(80, 5, f"Audited By: {sig_mgr}")
     pdf.set_xy(110, sig_y + 8); pdf.cell(80, 5, "Signature: ______________________")
     return bytes(pdf.output())
+
+def generate_sales_ledger_pdf(period_label, df_sales):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "Customer Sales & Revenue Report", f"Period: {period_label}")
+    rows = []
+    tot_rev = 0.0
+    if not df_sales.empty:
+        for _, r in df_sales.iterrows():
+            amt = clean_num(r.get('TOTAL PRICE', 0))
+            tot_rev += amt
+            rows.append([
+                str(r.get('Date_EC', '')),
+                str(r.get('customer name ab', '')),
+                str(r.get('ITEM NAME', '')),
+                f"{clean_num(r.get('STOCK OUT', 0)):,.0f}",
+                f"{clean_num(r.get('PRICE', 0)):,.2f}",
+                f"{amt:,.2f}",
+                str(r.get('Account', ''))
+            ])
+    _draw_pdf_table(pdf, ["Date (EC)", "Customer", "Item", "Qty", "Price", "Total (ETB)", "Account"], rows, font_size=6.5, col_widths=[26, 36, 40, 14, 22, 26, 26])
+    _draw_total_banner(pdf, "Total Sales Revenue", tot_rev)
+    return bytes(pdf.output())
+
+def generate_expense_credit_pdf(period_label, df_expenses, df_credit):
+    pdf = _init_pdf()
+    pdf.add_page()
+    _draw_pdf_header(pdf, "Operating Expenses & Supplier Payables Report", f"Period: {period_label}")
+    f_name = pdf.font_name
+    BLACK = (10, 10, 10)
+
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "1. Operating Expenses Log", ln=True)
+    exp_rows = []
+    tot_exp = 0.0
+    if not df_expenses.empty:
+        for _, r in df_expenses.iterrows():
+            amt = clean_num(r.get('amount', 0))
+            tot_exp += amt
+            exp_rows.append([
+                str(r.get('Date_EC', '')),
+                str(r.get('Category', '')),
+                str(r.get('Description', '')),
+                str(r.get('Account', '')),
+                f"{amt:,.2f}"
+            ])
+    _draw_pdf_table(pdf, ["Date (EC)", "Category", "Description", "Paid From", "Amount (ETB)"], exp_rows, font_size=6.8, col_widths=[28, 32, 66, 34, 30])
+
+    pdf.ln(6)
+    pdf.set_font(f_name, 'B', 10)
+    pdf.set_text_color(*BLACK)
+    pdf.cell(0, 7, "2. Local & Import Supplier Credit Purchases (Unpaid Payables)", ln=True)
+    cred_rows = []
+    tot_cred = 0.0
+    if not df_credit.empty:
+        for _, r in df_credit.iterrows():
+            camt = clean_num(r.get('total credit price', 0))
+            if camt > 0:
+                tot_cred += camt
+                cred_rows.append([
+                    str(r.get('Date_EC', '')),
+                    str(r.get('suppliers', '')),
+                    str(r.get('ITEM NUMBER', '')),
+                    f"{clean_num(r.get('STOCK IN', 0)):,.0f}",
+                    f"{camt:,.2f}"
+                ])
+    _draw_pdf_table(pdf, ["Date (EC)", "Supplier", "Item", "Qty", "Credit Owed (ETB)"], cred_rows, font_size=6.8, col_widths=[28, 46, 56, 24, 36])
+    _draw_total_banner(pdf, "Total Expenses + Credit Payables", tot_exp + tot_cred)
+    return bytes(pdf.output())
+
 
 # --- AUTHENTICATION ---
 def authenticate():
@@ -974,7 +1113,7 @@ if authenticate():
                 fig_pie.update_layout(template='plotly_dark', paper_bgcolor=CARD_BLACK, plot_bgcolor=CARD_BLACK, legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5), height=350, margin=dict(l=20, r=20, t=30, b=30))
                 st.plotly_chart(fig_pie, use_container_width=True)
 
-    # TAB 2: CATALOG (Image Uploader & Editor Restored)
+    # TAB 2: CATALOG (With Image Uploader & Data Editor)
     if "catalog" in tab_map:
         with tab_map["catalog"]:
             st.subheader("🛋️ eleganza HOMES — Product Catalog")
@@ -982,7 +1121,6 @@ if authenticate():
             if "custom_catalog_imgs" not in st.session_state:
                 st.session_state.custom_catalog_imgs = {}
 
-            # --- CATALOG EDITOR & IMAGE UPLOADER ---
             with st.expander("🖼️ Change / Upload Catalog Image for Any SKU"):
                 if not df_dyn_inv.empty:
                     ov_c1, ov_c2, ov_c3 = st.columns([1.6, 2.4, 1])
@@ -1051,7 +1189,6 @@ if authenticate():
                     stock = clean_num(row.get('STOCK AVAILABLE', 0))
                     status = str(row.get('STATUS', 'Available'))
 
-                    # Image logic
                     sheet_img = str(row.get('Image_URL', '')).strip() if 'Image_URL' in row and pd.notna(row.get('Image_URL')) else ""
                     if sku in st.session_state.custom_catalog_imgs:
                         img_url = st.session_state.custom_catalog_imgs[sku]
@@ -1080,7 +1217,7 @@ if authenticate():
             else:
                 st.info("No items found in Stock Management Google Sheet.")
 
-    # TAB 3: PROFORMA
+    # TAB 3: PROFORMA (Fixed Generator Button)
     if "proforma" in tab_map:
         with tab_map["proforma"]:
             st.subheader("📑 eleganza HOMES — Proforma Invoice Maker")
@@ -1113,11 +1250,15 @@ if authenticate():
                 grand_tot_pf = pf_df["Line_Total"].sum()
                 st.metric("Proforma Grand Total", f"ETB {grand_tot_pf:,.2f}")
 
-                pf_no = f"EL-PF-{datetime.datetime.now().strftime('%Y%m%d%H%M')}"
-                pdf_pf_bytes = generate_proforma_pdf(pf_no, pf_cust.strip() or "Valued Client", pf_phone.strip(), pf_valid, st.session_state.el_proforma_items, pf_notes)
-
+                st.divider()
                 b_col1, b_col2, b_col3 = st.columns(3)
-                b_col1.download_button("📥 Download Proforma PDF", data=pdf_pf_bytes, file_name=f"{pf_no}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+                
+                if b_col1.button("📥 Generate & Download Proforma PDF", type="primary", use_container_width=True):
+                    pf_no = f"EL-PF-{datetime.datetime.now().strftime('%Y%m%d%H%M')}"
+                    pdf_pf_bytes = generate_proforma_pdf(pf_no, pf_cust.strip() or "Valued Client", pf_phone.strip(), pf_valid, st.session_state.el_proforma_items, pf_notes)
+                    b64 = base64.b64encode(pdf_pf_bytes).decode()
+                    href = f'<a href="data:application/pdf;base64,{b64}" download="{pf_no}.pdf" style="text-decoration:none; display:block; text-align:center; background-color:{CASHMERE_HEX}; color:black; padding:10px; border-radius:8px; font-weight:bold;">Click to Save PDF</a>'
+                    st.markdown(href, unsafe_allow_html=True)
                 
                 if b_col2.button("💾 Save Proforma to Google Sheets", use_container_width=True):
                     try:
@@ -1126,11 +1267,11 @@ if authenticate():
                         rows_to_save = []
                         for it in st.session_state.el_proforma_items:
                             lt = clean_num(it["Qty"]) * clean_num(it["Unit_Price"])
-                            rows_to_save.append([pf_no, eth_d_pf, pf_cust.strip() or "Valued Client", pf_phone.strip(), it["Item_Code"], it["Item_Name"], float(it["Qty"]), float(it["Unit_Price"]), float(lt), float(grand_tot_pf), int(pf_valid), pf_notes])
+                            rows_to_save.append([f"EL-PF-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}", eth_d_pf, pf_cust.strip() or "Valued Client", pf_phone.strip(), it["Item_Code"], it["Item_Name"], float(it["Qty"]), float(it["Unit_Price"]), float(lt), float(grand_tot_pf), int(pf_valid), pf_notes])
                         ws_pf.append_rows(rows_to_save, value_input_option='USER_ENTERED')
-                        st.success(f"✅ Saved Proforma {pf_no} to Google Sheets!")
+                        st.success(f"✅ Saved Proforma to Google Sheets!")
                     except Exception as e:
-                        st.error(f"Could not save to Google Sheets: {e}")
+                        st.error(f"Could not save: {e}")
 
                 if b_col3.button("🗑️ Clear Proforma Items", use_container_width=True):
                     st.session_state.el_proforma_items = []
@@ -1338,7 +1479,7 @@ if authenticate():
                 show_e = [c for c in ['Date_EC', 'Category', 'Description', 'amount', 'Approved By', 'Account'] if c in df_cost_filt.columns]
                 st.dataframe(df_cost_filt[show_e], use_container_width=True, hide_index=True)
 
-    # TAB 10: PDF REPORT CENTER
+    # TAB 10: PDF REPORT CENTER (Restored all 5 options)
     if "pdf_hub" in tab_map:
         with tab_map["pdf_hub"]:
             st.subheader("📄 eleganza HOMES — Executive & Audit PDF Report Center")
@@ -1349,15 +1490,43 @@ if authenticate():
             gross_p = rev - cogs
             opex = df_cost_filt['amount'].sum() if not df_cost_filt.empty else 0.0
             net_p = gross_p - opex
-            
-            st.markdown("#### Showroom & Warehouse Stock Audit PDF")
-            sig1 = st.text_input("Store Keeper Name:", user_name, key="pdf_sk")
-            sig2 = st.text_input("Manager Name:", "General Manager", key="pdf_mgr")
-            in_q = df_dyn_inv['STOCK IN'].sum() if not df_dyn_inv.empty else 0
-            out_q = df_dyn_inv['STOCK OUT'].sum() if not df_dyn_inv.empty else 0
-            clo_q = df_dyn_inv['STOCK AVAILABLE'].sum() if not df_dyn_inv.empty else 0
-            aud_bytes = generate_stock_audit_pdf(period_label, in_q, out_q, clo_q, stock_val, df_dyn_inv, sig1, sig2)
-            st.download_button("📥 Download Stock Audit PDF", data=aud_bytes, file_name=f"Eleganza_Homes_Stock_Audit_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+            asset_val = (df_assets['Total Value'].apply(clean_num).sum() if not df_assets.empty and 'Total Value' in df_assets.columns else 0.0) + (df_office['Total Cost'].apply(clean_num).sum() if not df_office.empty and 'Total Cost' in df_office.columns else 0.0)
+
+            r1, r2 = st.columns(2)
+            with r1:
+                st.markdown("#### 1️⃣ Executive P&L Report")
+                st.write("Includes Revenue, Import/Local COGS, Gross Profit, Operating Expenses, and Net Operating Profit.")
+                pnl_bytes = generate_executive_pnl_pdf(period_label, rev, cogs, gross_p, opex, net_p, stock_val, asset_val)
+                st.download_button("📥 Download Executive P&L PDF", data=pnl_bytes, file_name=f"Eleganza_Homes_PnL_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+
+                st.markdown("---")
+                st.markdown("#### 2️⃣ 3-Account Treasury & Co-Owner Balance PDF")
+                st.write("Complete cash reconciliation for Company Account, SAMI, and JO.")
+                trs_bytes = generate_treasury_pdf(period_label, treasury_summary, df_cash_filt)
+                st.download_button("📥 Download 3-Account Treasury PDF", data=trs_bytes, file_name=f"Eleganza_Homes_Treasury_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+
+                st.markdown("---")
+                st.markdown("#### 3️⃣ Customer Sales Ledger PDF")
+                st.write("Itemized showroom & wholesale sales, quantities, prices, and deposit accounts.")
+                sls_bytes = generate_sales_ledger_pdf(period_label, df_out_filt)
+                st.download_button("📥 Download Sales Ledger PDF", data=sls_bytes, file_name=f"Eleganza_Homes_Sales_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+
+            with r2:
+                st.markdown("#### 4️⃣ Showroom & Warehouse Stock Audit PDF")
+                st.write("Physical inventory count sheet with Store Keeper & Manager signature blocks.")
+                sig1 = st.text_input("Store Keeper Name:", user_name, key="pdf_sk")
+                sig2 = st.text_input("Manager Name:", "General Manager", key="pdf_mgr")
+                in_q = df_dyn_inv['STOCK IN'].sum() if not df_dyn_inv.empty else 0
+                out_q = df_dyn_inv['STOCK OUT'].sum() if not df_dyn_inv.empty else 0
+                clo_q = df_dyn_inv['STOCK AVAILABLE'].sum() if not df_dyn_inv.empty else 0
+                aud_bytes = generate_stock_audit_pdf(period_label, in_q, out_q, clo_q, stock_val, df_dyn_inv, sig1, sig2)
+                st.download_button("📥 Download Stock Audit PDF", data=aud_bytes, file_name=f"Eleganza_Homes_Stock_Audit_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
+
+                st.markdown("---")
+                st.markdown("#### 5️⃣ Operating Expenses & Supplier Payables PDF")
+                st.write("Full breakdown of operational costs and unpaid credit balances owed to suppliers.")
+                exp_bytes = generate_expense_credit_pdf(period_label, df_cost_filt, df_in_filt)
+                st.download_button("📥 Download Expenses & Payables PDF", data=exp_bytes, file_name=f"Eleganza_Homes_Expenses_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
 
     # TAB 11: PURCHASE REQUEST
     if "request" in tab_map:
