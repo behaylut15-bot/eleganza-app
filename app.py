@@ -419,9 +419,9 @@ def build_dynamic_inventory(in_df, out_df, mgmt_df):
     df_dyn_inv = mgmt_base.merge(in_agg, on='item_key', how='outer', suffixes=('', '_in'))
     df_dyn_inv = df_dyn_inv.merge(out_agg, on='item_key', how='outer', suffixes=('', '_out'))
 
-    for col in ['ITEM CODE', 'ITEM NAME', 'STOCK IN', 'STOCK OUT', 'STOCK AVAILABLE', 'price', 'total price', 'CATEGORY', 'Measure', 'MIN STOCK']:
+    for col in ['ITEM CODE', 'ITEM NAME', 'STOCK IN', 'STOCK OUT', 'STOCK AVAILABLE', 'price', 'total price', 'CATEGORY', 'Measure', 'MIN STOCK', 'Image_URL']:
         if col not in df_dyn_inv.columns:
-            df_dyn_inv[col] = '' if 'NAME' in col or 'CODE' in col or 'CATEGORY' in col or 'Measure' in col else 0.0
+            df_dyn_inv[col] = '' if 'NAME' in col or 'CODE' in col or 'CATEGORY' in col or 'Measure' in col or 'Image_URL' in col else 0.0
 
     df_dyn_inv['ITEM CODE'] = df_dyn_inv['ITEM CODE'].replace('', pd.NA).fillna(df_dyn_inv['item_key'])
 
@@ -458,6 +458,24 @@ def get_image_bytes(img_src):
             return io.BytesIO(urllib.request.urlopen(req).read())
         except: return None
     return None
+
+def resolve_catalog_image(row, custom_imgs):
+    sku = str(row.get('ITEM CODE', '')).strip()
+    name = str(row.get('ITEM NAME', ''))
+    category = str(row.get('CATEGORY', 'Furniture'))
+    sheet_img = str(row.get('Image_URL', '')).strip() if 'Image_URL' in row and pd.notna(row.get('Image_URL')) else ""
+    if sku in custom_imgs and custom_imgs[sku]:
+        return custom_imgs[sku]
+    if sheet_img.startswith("http") or sheet_img.startswith("data:image"):
+        return sheet_img
+    img_url = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
+    if 'lighting' in category.lower() or 'chandelier' in name.lower():
+        img_url = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80"
+    elif 'decor' in category.lower() or 'accessory' in name.lower():
+        img_url = "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=600&q=80"
+    elif 'bedroom' in category.lower() or 'bed' in name.lower():
+        img_url = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80"
+    return img_url
 
 # =====================================================================
 # ELEGANZA HOMES BRANDED PDF REPORT SUITE (BLACK & WHITE)
@@ -1095,6 +1113,9 @@ if authenticate():
 
     df_dyn_inv, stock_val = build_dynamic_inventory(df_in, df_out, df_mgmt)
 
+    if "custom_catalog_imgs" not in st.session_state:
+        st.session_state.custom_catalog_imgs = {}
+
     unit_cost_map = {}
     if not df_in.empty:
         for _, r in df_in.iterrows():
@@ -1227,37 +1248,62 @@ if authenticate():
                 )
                 st.plotly_chart(fig_pie, use_container_width=True)
 
-    # TAB 2: CATALOG
+    # TAB 2: CATALOG (FIXED IMAGE PERSISTENCE)
     if "catalog" in tab_map:
         with tab_map["catalog"]:
             st.subheader("🛋️ eleganza HOMES — Product Catalog")
-
-            if "custom_catalog_imgs" not in st.session_state:
-                st.session_state.custom_catalog_imgs = {}
 
             with st.expander("🖼️ Change / Upload Catalog Image for Any SKU"):
                 if not df_dyn_inv.empty:
                     ov_c1, ov_c2, ov_c3 = st.columns([1.6, 2.4, 1])
                     sku_list_cat = df_dyn_inv['ITEM CODE'].astype(str).tolist()
                     sel_ov_sku = ov_c1.selectbox("Select SKU:", sku_list_cat, key="ov_sku_sel")
-                    new_img_url = ov_c2.text_input("Paste Image URL (or upload a photo below):", value=st.session_state.custom_catalog_imgs.get(sel_ov_sku, "") if not str(st.session_state.custom_catalog_imgs.get(sel_ov_sku, "")).startswith("data:") else "", key="ov_url_inp")
+                    current_row_img = ""
+                    matched_rows = df_dyn_inv[df_dyn_inv['ITEM CODE'].astype(str) == sel_ov_sku]
+                    if not matched_rows.empty and 'Image_URL' in matched_rows.columns and pd.notna(matched_rows['Image_URL'].iloc[0]):
+                        current_row_img = str(matched_rows['Image_URL'].iloc[0]).strip()
+                    sess_img = st.session_state.custom_catalog_imgs.get(sel_ov_sku, "")
+                    prefill_url = sess_img if sess_img and not str(sess_img).startswith("data:") else current_row_img
+                    new_img_url = ov_c2.text_input("Paste Image URL (or upload a photo below):", value=prefill_url, key="ov_url_inp")
                     uploaded_sku_photo = st.file_uploader(f"Or upload local photo for {sel_ov_sku}:", type=["png", "jpg", "jpeg", "webp"], key="ov_file_up")
                     if ov_c3.button("Apply Image", type="primary", use_container_width=True):
                         if uploaded_sku_photo is not None:
                             b64_up = base64.b64encode(uploaded_sku_photo.read()).decode("utf-8")
                             st.session_state.custom_catalog_imgs[sel_ov_sku] = f"data:{uploaded_sku_photo.type};base64,{b64_up}"
-                            st.success(f"Uploaded photo for {sel_ov_sku}")
+                            st.success(f"Uploaded photo for {sel_ov_sku} (active in current session)")
                             st.rerun()
                         elif new_img_url.strip():
-                            st.session_state.custom_catalog_imgs[sel_ov_sku] = new_img_url.strip()
-                            st.success(f"Updated image URL for {sel_ov_sku}")
+                            clean_url = new_img_url.strip()
+                            st.session_state.custom_catalog_imgs[sel_ov_sku] = clean_url
+                            try:
+                                ws_mgmt = _get_sheets_global().worksheet("Stock Management")
+                                all_vals = ws_mgmt.get_all_values()
+                                for r_idx, row_vals in enumerate(all_vals[:30], start=1):
+                                    norm_hdr = [str(c).strip().lower() for c in row_vals]
+                                    if "item code" in norm_hdr:
+                                        code_col = norm_hdr.index("item code") + 1
+                                        if "image_url" in norm_hdr:
+                                            img_col = norm_hdr.index("image_url") + 1
+                                        else:
+                                            img_col = len(row_vals) + 1
+                                            ws_mgmt.update_cell(r_idx, img_col, "Image_URL")
+                                        for target_r in range(r_idx + 1, len(all_vals) + 1):
+                                            row_cells = all_vals[target_r - 1]
+                                            if code_col <= len(row_cells) and str(row_cells[code_col - 1]).strip().upper() == sel_ov_sku.strip().upper():
+                                                ws_mgmt.update_cell(target_r, img_col, clean_url)
+                                                break
+                                        break
+                                load_all_erp_data.clear()
+                                st.success(f"✅ Saved image URL for {sel_ov_sku} to Google Sheets!")
+                            except Exception as e:
+                                st.warning(f"Updated in session, but could not save to sheet: {e}")
                             st.rerun()
                 else:
                     st.info("No items available to edit.")
 
             with st.expander("📝 Catalog Data Editor (Modify Stock Management Sheet)"):
                 if not df_dyn_inv.empty:
-                    edit_cols = ['ITEM CODE', 'ITEM NAME', 'CATEGORY', 'Measure', 'MIN STOCK', 'price']
+                    edit_cols = ['ITEM CODE', 'ITEM NAME', 'CATEGORY', 'Measure', 'MIN STOCK', 'price', 'Image_URL']
                     edit_df = df_dyn_inv[edit_cols].copy()
 
                     edited_df = st.data_editor(edit_df, use_container_width=True, hide_index=True, key="catalog_editor", num_rows="dynamic")
@@ -1266,13 +1312,13 @@ if authenticate():
                         try:
                             ws = _get_sheets_global().worksheet("Stock Management")
                             ws.clear()
-                            headers = ["ITEM CODE", "ITEM NAME", "CATEGORY", "Measure", "MIN STOCK", "STOCK IN", "STOCK OUT", "STOCK AVAILABLE", "price", "total price", "STATUS"]
+                            headers = ["ITEM CODE", "ITEM NAME", "CATEGORY", "Measure", "MIN STOCK", "STOCK IN", "STOCK OUT", "STOCK AVAILABLE", "price", "total price", "STATUS", "Image_URL"]
                             ws.append_row(headers)
 
                             for _, r in edited_df.iterrows():
                                 ws.append_row([
                                     r['ITEM CODE'], r['ITEM NAME'], r['CATEGORY'], r['Measure'], float(r['MIN STOCK']),
-                                    0, 0, 0, float(r['price']), 0, "Available"
+                                    0, 0, 0, float(r['price']), 0, "Available", str(r.get('Image_URL', '') or '')
                                 ])
                             st.success("✅ Catalog updated successfully!")
                             load_all_erp_data.clear()
@@ -1302,20 +1348,7 @@ if authenticate():
                     price = clean_num(row.get('price', 0))
                     stock = clean_num(row.get('STOCK AVAILABLE', 0))
                     status = str(row.get('STATUS', 'Available'))
-
-                    sheet_img = str(row.get('Image_URL', '')).strip() if 'Image_URL' in row and pd.notna(row.get('Image_URL')) else ""
-                    if sku in st.session_state.custom_catalog_imgs:
-                        img_url = st.session_state.custom_catalog_imgs[sku]
-                    elif sheet_img.startswith("http"):
-                        img_url = sheet_img
-                    else:
-                        img_url = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
-                        if 'lighting' in category.lower() or 'chandelier' in name.lower():
-                            img_url = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80"
-                        elif 'decor' in category.lower() or 'accessory' in name.lower():
-                            img_url = "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=600&q=80"
-                        elif 'bedroom' in category.lower() or 'bed' in name.lower():
-                            img_url = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80"
+                    img_url = resolve_catalog_image(row, st.session_state.custom_catalog_imgs)
 
                     col_idx = i % 3
                     with cols[col_idx]:
@@ -1393,23 +1426,7 @@ if authenticate():
                         sku = it['Item_Code']
                         row = df_dyn_inv[df_dyn_inv['ITEM CODE'] == sku]
                         if not row.empty:
-                            r = row.iloc[0]
-                            sheet_img = str(r.get('Image_URL', '')).strip() if 'Image_URL' in r and pd.notna(r.get('Image_URL')) else ""
-                            if sku in st.session_state.custom_catalog_imgs:
-                                img_map[sku] = st.session_state.custom_catalog_imgs[sku]
-                            elif sheet_img.startswith("http"):
-                                img_map[sku] = sheet_img
-                            else:
-                                cat = str(r.get('CATEGORY', '')).lower()
-                                nm = str(r.get('ITEM NAME', '')).lower()
-                                if 'lighting' in cat or 'chandelier' in nm:
-                                    img_map[sku] = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80"
-                                elif 'decor' in cat or 'accessory' in nm:
-                                    img_map[sku] = "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=600&q=80"
-                                elif 'bedroom' in cat or 'bed' in nm:
-                                    img_map[sku] = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80"
-                                else:
-                                    img_map[sku] = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
+                            img_map[sku] = resolve_catalog_image(row.iloc[0], st.session_state.custom_catalog_imgs)
                         else:
                             img_map[sku] = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
 
@@ -1602,7 +1619,7 @@ if authenticate():
                 if not df_office.empty: st.dataframe(df_office, use_container_width=True, hide_index=True)
                 else: st.info("No entries in OFFICE ASSET.")
 
-    # TAB 6: INVENTORY CONTROL
+    # TAB 6: INVENTORY CONTROL (WITH IMAGE_URL & PREVIEW)
     if "inv" in tab_map:
         with tab_map["inv"]:
             st.subheader("📦 Furniture & Home Accessories Inventory (`Stock Management`)")
@@ -1618,11 +1635,27 @@ if authenticate():
                 if sel_cat != "All": dv = dv[dv['CATEGORY'] == sel_cat]
                 if st_f != "All" and 'STATUS' in dv.columns: dv = dv[dv['STATUS'].astype(str).str.lower() == st_f.lower()]
 
-                cols_show = [c for c in ['ITEM CODE', 'ITEM NAME', 'CATEGORY', 'Measure', 'MIN STOCK', 'STOCK IN', 'STOCK OUT', 'STOCK AVAILABLE', 'price', 'total price', 'STATUS'] if c in dv.columns]
+                cols_show = [c for c in ['ITEM CODE', 'ITEM NAME', 'CATEGORY', 'Measure', 'MIN STOCK', 'STOCK IN', 'STOCK OUT', 'STOCK AVAILABLE', 'price', 'total price', 'STATUS', 'Image_URL'] if c in dv.columns]
                 st.dataframe(
                     dv[cols_show].style.format({'MIN STOCK': '{:,.0f}', 'STOCK IN': '{:,.0f}', 'STOCK OUT': '{:,.0f}', 'STOCK AVAILABLE': '{:,.0f}', 'price': 'ETB {:,.2f}', 'total price': 'ETB {:,.2f}'}).map(style_stock_status, subset=['STATUS'] if 'STATUS' in cols_show else []),
                     use_container_width=True, hide_index=True
                 )
+
+                if not dv.empty:
+                    st.divider()
+                    pv_col1, pv_col2 = st.columns([1.2, 2.8])
+                    inv_skus = dv['ITEM CODE'].astype(str).tolist()
+                    sel_inv_sku = pv_col1.selectbox("Preview SKU Image:", inv_skus, key="inv_img_preview_sku")
+                    sel_inv_row = dv[dv['ITEM CODE'].astype(str) == sel_inv_sku].iloc[0]
+                    prev_img_src = resolve_catalog_image(sel_inv_row, st.session_state.custom_catalog_imgs)
+                    with pv_col1:
+                        st.image(prev_img_src, caption=f"{sel_inv_row.get('ITEM NAME', sel_inv_sku)} ({sel_inv_sku})", width=180)
+                    with pv_col2:
+                        raw_url_val = str(sel_inv_row.get('Image_URL', '') or '').strip()
+                        st.markdown(f"**Item:** {sel_inv_row.get('ITEM NAME', '')}")
+                        st.markdown(f"**Category:** {sel_inv_row.get('CATEGORY', '')} | **Status:** {sel_inv_row.get('STATUS', '')}")
+                        st.markdown(f"**Available Stock:** {clean_num(sel_inv_row.get('STOCK AVAILABLE', 0)):,.0f} {sel_inv_row.get('Measure', '')}")
+                        st.caption(f"Image_URL: {raw_url_val if raw_url_val else '(Using default category/session image)'}")
             else: st.info("No items in Stock Management.")
 
     # TAB 7: SALES
@@ -1863,4 +1896,4 @@ if authenticate():
                                     st.success(f"✅ Approved and posted {len(items)} items to STOCK IN!")
                                     load_all_erp_data.clear()
                                     st.rerun()
-                                except Exception as e: st.error(f"Approval error: {e}")
+                                except Exception as e: st.error(f"Approval error:
