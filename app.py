@@ -442,6 +442,21 @@ def build_dynamic_inventory(in_df, out_df, mgmt_df):
     stock_val = float(df_dyn_inv['total price'].sum())
     return df_dyn_inv, stock_val
 
+# Helper to get image bytes for PDF
+def get_image_bytes(img_src):
+    if not img_src: return None
+    if str(img_src).startswith("data:image"):
+        try:
+            b64_str = str(img_src).split(",")[1]
+            return io.BytesIO(base64.b64decode(b64_str))
+        except: return None
+    elif str(img_src).startswith("http"):
+        try:
+            req = urllib.request.Request(img_src, headers={'User-Agent': 'Mozilla/5.0'})
+            return io.BytesIO(urllib.request.urlopen(req).read())
+        except: return None
+    return None
+
 # =====================================================================
 # ELEGANZA HOMES BRANDED PDF REPORT SUITE
 # =====================================================================
@@ -590,28 +605,89 @@ def _draw_total_banner(pdf, label, amount):
     pdf.set_text_color(*WHITE)
     pdf.cell(box_w - 10, 6, f"ETB {amount:,.2f}", ln=True, align='R')
 
-def generate_proforma_pdf(proforma_no, cust_name, cust_phone, validity_days, items_list, notes_txt):
+def generate_proforma_pdf(proforma_no, cust_name, cust_phone, validity_days, items_list, notes_txt, img_map):
     pdf = _init_pdf()
     pdf.add_page()
     _draw_pdf_header(pdf, f"PROFORMA INVOICE  #{proforma_no}", f"Prepared For: {cust_name}  |  Phone: {cust_phone or 'N/A'}  |  Valid: {validity_days} Days")
     f_name = pdf.font_name
     BLACK = (10, 10, 10)
+    IVORY = (245, 245, 245)
+    WHITE = (255, 255, 255)
+    DARK = (20, 20, 20)
+    GOLD = (212, 175, 55)
 
     pdf.set_font(f_name, 'B', 9.5)
     pdf.set_text_color(*BLACK)
     pdf.cell(0, 7, "Itemized Furniture & Home Accessories Quotation (ETB)", ln=True)
 
-    rows = []
+    # Custom Proforma Table with Images
+    headers = ["#", "Image", "SKU", "Item Description", "Qty", "Unit Price (ETB)", "Line Total (ETB)"]
+    col_widths = [10, 22, 22, 56, 15, 30, 35]
+    
+    def _hdr():
+        pdf.set_fill_color(*BLACK)
+        pdf.set_text_color(*WHITE)
+        pdf.set_font(f_name, 'B', 8)
+        pdf.set_x(10)
+        for h, w in zip(headers, col_widths):
+            pdf.cell(w, 8, str(h), border=0, align='C', fill=True)
+        pdf.ln()
+
+    _hdr()
+    pdf.set_font(f_name, '', 7.5)
+    pdf.set_text_color(*DARK)
     grand_total = 0.0
+
     for idx, it in enumerate(items_list, start=1):
+        if pdf.get_y() + 18 > pdf.h - pdf.b_margin - 10:
+            pdf.add_page()
+            _hdr()
+            pdf.set_font(f_name, '', 7.5)
+            pdf.set_text_color(*DARK)
+
         lt = clean_num(it['Qty']) * clean_num(it['Unit_Price'])
         grand_total += lt
-        rows.append([
-            str(idx), str(it['Item_Code']), str(it['Item_Name']),
-            f"{clean_num(it['Qty']):,.0f}", f"{clean_num(it['Unit_Price']):,.2f}", f"{lt:,.2f}"
-        ])
+        start_y = pdf.get_y()
+        pdf.set_fill_color(*(IVORY if idx % 2 == 0 else WHITE))
 
-    _draw_pdf_table(pdf, ["#", "SKU", "Item Description", "Qty", "Unit Price (ETB)", "Line Total (ETB)"], rows, font_size=7.5, col_widths=[12, 26, 76, 18, 36, 42])
+        # # Column
+        pdf.set_xy(10, start_y)
+        pdf.cell(10, 18, str(idx), border=0, align='C', fill=True)
+
+        # Image Column
+        img_src = img_map.get(it['Item_Code'])
+        img_data = get_image_bytes(img_src)
+        if img_data:
+            try:
+                pdf.image(img_data, x=10 + 10 + 2, y=start_y + 2, w=16, h=14)
+            except Exception:
+                pass
+        pdf.set_xy(10 + 10, start_y)
+        pdf.cell(22, 18, "", border=0, fill=True)
+
+        # SKU Column
+        pdf.set_xy(10 + 10 + 22, start_y)
+        pdf.cell(22, 18, str(it['Item_Code']), border=0, align='C', fill=True)
+
+        # Item Description
+        name_str = str(it['Item_Name'])
+        if len(name_str) > 30: name_str = name_str[:27] + "..."
+        pdf.set_xy(10 + 10 + 22 + 22, start_y)
+        pdf.cell(56, 18, name_str, border=0, align='L', fill=True)
+
+        # Qty
+        pdf.set_xy(10 + 10 + 22 + 22 + 56, start_y)
+        pdf.cell(15, 18, f"{clean_num(it['Qty']):,.0f}", border=0, align='C', fill=True)
+
+        # Unit Price
+        pdf.set_xy(10 + 10 + 22 + 22 + 56 + 15, start_y)
+        pdf.cell(30, 18, f"{clean_num(it['Unit_Price']):,.2f}", border=0, align='R', fill=True)
+
+        # Line Total
+        pdf.set_xy(10 + 10 + 22 + 22 + 56 + 15 + 30, start_y)
+        pdf.cell(35, 18, f"{lt:,.2f}", border=0, align='R', fill=True)
+
+        pdf.ln(18)
 
     if notes_txt:
         pdf.ln(5)
@@ -947,7 +1023,7 @@ if authenticate():
         return {
             "Stock_Mgmt": get_eleganza_tab(sheet, "Stock Management", "ITEM CODE"),
             "Stock_In": get_eleganza_tab(sheet, "STOCK IN", "ITEM NUMBER"),
-            "Stock_Out": get_eleganza_tab(sheet, "Stock OUT", "ITEM NUMBER"),
+            "Stock_Out": get_eleganza_tab(sheet, "STOCK OUT", "ITEM NUMBER"),
             "Suppliers": get_eleganza_tab(sheet, "suppliers information", "Name"),
             "Costs": get_eleganza_tab(sheet, "cost", "DATE"),
             "Cash": get_eleganza_tab(sheet, "Cash_Accounts", "Date"),
@@ -1217,7 +1293,7 @@ if authenticate():
             else:
                 st.info("No items found in Stock Management Google Sheet.")
 
-    # TAB 3: PROFORMA (Fixed Generator Button)
+    # TAB 3: PROFORMA (Includes Images)
     if "proforma" in tab_map:
         with tab_map["proforma"]:
             st.subheader("📑 eleganza HOMES — Proforma Invoice Maker")
@@ -1254,10 +1330,37 @@ if authenticate():
                 b_col1, b_col2, b_col3 = st.columns(3)
                 
                 if b_col1.button("📥 Generate & Download Proforma PDF", type="primary", use_container_width=True):
+                    # Build image map
+                    img_map = {}
+                    for it in st.session_state.el_proforma_items:
+                        sku = it['Item_Code']
+                        row = df_dyn_inv[df_dyn_inv['ITEM CODE'] == sku]
+                        if not row.empty:
+                            r = row.iloc[0]
+                            sheet_img = str(r.get('Image_URL', '')).strip() if 'Image_URL' in r and pd.notna(r.get('Image_URL')) else ""
+                            if sku in st.session_state.custom_catalog_imgs:
+                                img_map[sku] = st.session_state.custom_catalog_imgs[sku]
+                            elif sheet_img.startswith("http"):
+                                img_map[sku] = sheet_img
+                            else:
+                                cat = str(r.get('CATEGORY', '')).lower()
+                                nm = str(r.get('ITEM NAME', '')).lower()
+                                if 'lighting' in cat or 'chandelier' in nm:
+                                    img_map[sku] = "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80"
+                                elif 'decor' in cat or 'accessory' in nm:
+                                    img_map[sku] = "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&w=600&q=80"
+                                elif 'bedroom' in cat or 'bed' in nm:
+                                    img_map[sku] = "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=600&q=80"
+                                else:
+                                    img_map[sku] = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
+                        else:
+                            img_map[sku] = "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80"
+
                     pf_no = f"EL-PF-{datetime.datetime.now().strftime('%Y%m%d%H%M')}"
-                    pdf_pf_bytes = generate_proforma_pdf(pf_no, pf_cust.strip() or "Valued Client", pf_phone.strip(), pf_valid, st.session_state.el_proforma_items, pf_notes)
-                    b64 = base64.b64encode(pdf_pf_bytes).decode()
-                    href = f'<a href="data:application/pdf;base64,{b64}" download="{pf_no}.pdf" style="text-decoration:none; display:block; text-align:center; background-color:{CASHMERE_HEX}; color:black; padding:10px; border-radius:8px; font-weight:bold;">Click to Save PDF</a>'
+                    pdf_pf_bytes = generate_proforma_pdf(pf_no, pf_cust.strip() or "Valued Client", pf_phone.strip(), pf_valid, st.session_state.el_proforma_items, pf_notes, img_map)
+                    
+                    b64_pdf = base64.b64encode(pdf_pf_bytes).decode()
+                    href = f'<a href="data:application/pdf;base64,{b64_pdf}" download="{pf_no}.pdf" style="text-decoration:none; display:block; text-align:center; background-color:{CASHMERE_HEX}; color:black; padding:10px; border-radius:8px; font-weight:bold;">Click to Save PDF</a>'
                     st.markdown(href, unsafe_allow_html=True)
                 
                 if b_col2.button("💾 Save Proforma to Google Sheets", use_container_width=True):
@@ -1479,7 +1582,7 @@ if authenticate():
                 show_e = [c for c in ['Date_EC', 'Category', 'Description', 'amount', 'Approved By', 'Account'] if c in df_cost_filt.columns]
                 st.dataframe(df_cost_filt[show_e], use_container_width=True, hide_index=True)
 
-    # TAB 10: PDF REPORT CENTER (Restored all 5 options)
+    # TAB 10: PDF REPORT CENTER
     if "pdf_hub" in tab_map:
         with tab_map["pdf_hub"]:
             st.subheader("📄 eleganza HOMES — Executive & Audit PDF Report Center")
