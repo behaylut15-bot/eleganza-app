@@ -225,7 +225,7 @@ st.markdown(f"""
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: linear-gradient(90deg, {{ELEVATED_BLACK_HEX} 0%, #34373a 100%);
+        background: linear-gradient(90deg, {ELEVATED_BLACK_HEX} 0%, #34373a 100%);
         padding: 14px 26px;
         border-radius: 12px;
         border-left: 5px solid {CASHMERE_HEX};
@@ -298,7 +298,7 @@ st.markdown(f"""
         font-weight: 500;
     }}
     .stTabs [aria-selected="true"] {{
-        background: linear-gradient(135deg, {{ELEVATED_BLACK_HEX} 0%, #5c6065 100%) !important;
+        background: linear-gradient(135deg, qq{ELEVATED_BLACK_HEX} 0%, #5c6065 100%) !important;
         color: {CASHMERE_HEX} !important;
         font-weight: 700 !important;
         border: 1px solid {CASHMERE_HEX} !important;
@@ -308,7 +308,7 @@ st.markdown(f"""
         border-right: 1px solid rgba(188, 174, 162, 0.25);
     }}
     .user-badge {{
-        background: linear-gradient(135deg, {{ELEVATED_BLACK_HEX} 0%, #34373a 100%);
+        background: linear-gradient(135deg, {ELEVATED_BLACK_HEX} 0%, #34373a 100%);
         color: {IVORY_HEX};
         padding: 12px;
         border-radius: 10px;
@@ -318,14 +318,14 @@ st.markdown(f"""
         border: 1px solid {CASHMERE_HEX};
     }}
     .treasury-card {{
-        background: linear-gradient(145deg, {{ELEVATED_BLACK_HEX} 0%, #34373a 100%);
+        background: linear-gradient(145deg, {ELEVATED_BLACK_HEX} 0%, #34373a 100%);
         border: 1px solid rgba(188, 174, 162, 0.4);
         border-radius: 12px;
         padding: 16px;
         margin-bottom: 10px;
     }}
     .catalog-card {{
-        background: linear-gradient(145deg, {{ELEVATED_BLACK_HEX} 0%, #34373a 100%);
+        background: linear-gradient(145deg, {ELEVATED_BLACK_HEX} 0%, #34373a 100%);
         border: 1px solid rgba(188, 174, 162, 0.35);
         border-radius: 12px;
         padding: 16px;
@@ -1226,7 +1226,7 @@ if authenticate():
                 acc_vals = [clean_num(r[-1]) for r in treasury_summary[:-1]]
                 fig_pie = px.pie(
                     names=acc_names, values=[max(0, v) for v in acc_vals], hole=0.45,
-                    color_discrete_sequence=[CASHMERE_HEX, SAGE_HEX, STONE_HEX]
+                    color_discrete_sequence=[CASHMERE_HEX, {CASHMERE_HEX}, STONE_HEX]
                 )
                 fig_pie.update_layout(template='plotly_dark', paper_bgcolor='rgba(0,0,0,0)', height=340)
                 st.plotly_chart(fig_pie, use_container_width=True)
@@ -1422,7 +1422,7 @@ if authenticate():
                                 <img src="{img_url}" style="width:100%; height:165px; object-fit:cover; border-radius:8px; margin-bottom:10px; border:1px solid rgba(188,174,162,0.3);">
                                 <div style="font-size:11px; color:{CASHMERE_HEX}; font-weight:700; text-transform:uppercase; letter-spacing:1.2px;">{category} • SKU: {sku}</div>
                                 <div style="font-size:16px; color:{IVORY_HEX}; font-weight:700; margin:4px 0;">{name}</div>
-                                <div style="font-size:18px; color:{SAGE_HEX}; font-weight:700; margin:6px 0;">ETB {price:,.2f}</div>
+                                <div style="font-size:18px; color:{CASHMERE_HEX}; font-weight:700; margin:6px 0;">ETB {price:,.2f}</div>
                                 <div style="font-size:12px; color:{STONE_HEX};">In Stock: <b>{stock:,.0f} units</b> | <span style="color:{CASHMERE_HEX};">{status}</span></div>
                             </div>
                         """, unsafe_allow_html=True)
@@ -1536,7 +1536,7 @@ if authenticate():
                             <div style="color:{IVORY_HEX}; font-size:24px; font-weight:800; margin:6px 0;">ETB {row[5]}</div>
                             <div style="font-size:12px; color:{STONE_HEX};">
                                 Capital/Transfers: <b>{row[1]}</b><br>
-                                Sales In: <span style="color:{SAGE_HEX};">+{row[2]}</span> | Outflows: <span style="color:#F87171;">-{clean_num(row[3])+clean_num(row[4]):,.2f}</span>
+                                Sales In: <span style="color:{CASHMERE_HEX};">+{row[2]}</span> | Outflows: <span style="color:#F87171;">-{clean_num(row[3])+clean_num(row[4]):,.2f}</span>
                             </div>
                         </div>
                     """, unsafe_allow_html=True)
