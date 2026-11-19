@@ -1896,4 +1896,4 @@ if authenticate():
                                     st.success(f"✅ Approved and posted {len(items)} items to STOCK IN!")
                                     load_all_erp_data.clear()
                                     st.rerun()
-                                except Exception as e: st.error(f"Approval error:
+                                except Exception as e: st.error(f"Approval error: {e}")
