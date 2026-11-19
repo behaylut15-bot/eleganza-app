@@ -225,7 +225,7 @@ st.markdown(f"""
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: linear-gradient(90deg, {CHARCOAL_HEX} 0%, #34373a 100%);
+        background: linear-gradient(90deg, {{ELEVATED_BLACK_HEX} 0%, #34373a 100%);
         padding: 14px 26px;
         border-radius: 12px;
         border-left: 5px solid {CASHMERE_HEX};
@@ -298,7 +298,7 @@ st.markdown(f"""
         font-weight: 500;
     }}
     .stTabs [aria-selected="true"] {{
-        background: linear-gradient(135deg, {CHARCOAL_HEX} 0%, #5c6065 100%) !important;
+        background: linear-gradient(135deg, {{ELEVATED_BLACK_HEX} 0%, #5c6065 100%) !important;
         color: {CASHMERE_HEX} !important;
         font-weight: 700 !important;
         border: 1px solid {CASHMERE_HEX} !important;
@@ -308,7 +308,7 @@ st.markdown(f"""
         border-right: 1px solid rgba(188, 174, 162, 0.25);
     }}
     .user-badge {{
-        background: linear-gradient(135deg, {CHARCOAL_HEX} 0%, #34373a 100%);
+        background: linear-gradient(135deg, {{ELEVATED_BLACK_HEX} 0%, #34373a 100%);
         color: {IVORY_HEX};
         padding: 12px;
         border-radius: 10px;
@@ -318,14 +318,14 @@ st.markdown(f"""
         border: 1px solid {CASHMERE_HEX};
     }}
     .treasury-card {{
-        background: linear-gradient(145deg, {CHARCOAL_HEX} 0%, #34373a 100%);
+        background: linear-gradient(145deg, {{ELEVATED_BLACK_HEX} 0%, #34373a 100%);
         border: 1px solid rgba(188, 174, 162, 0.4);
         border-radius: 12px;
         padding: 16px;
         margin-bottom: 10px;
     }}
     .catalog-card {{
-        background: linear-gradient(145deg, {CHARCOAL_HEX} 0%, #34373a 100%);
+        background: linear-gradient(145deg, {{ELEVATED_BLACK_HEX} 0%, #34373a 100%);
         border: 1px solid rgba(188, 174, 162, 0.35);
         border-radius: 12px;
         padding: 16px;
