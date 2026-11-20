@@ -99,23 +99,13 @@ def normalize_image_url(raw_url):
     s = str(raw_url).strip()
     if not s or s.lower() in ("nan", "none", "null"):
         return ""
-   m_file = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", s)
+    m_file = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", s)
     if m_file:
         return f"https://lh3.googleusercontent.com/d/{m_file.group(1)}"
     m_open = re.search(r"(?:drive\.google\.com/open\?id=|drive\.google\.com/uc\?.*id=)([a-zA-Z0-9_-]+)", s)
     if m_open:
         return f"https://lh3.googleusercontent.com/d/{m_open.group(1)}"
-def get_sheet_image_from_row(row):
-    """Extracts the image URL from any image column variant in Stock Management."""
-    if row is None:
-        return ""
-    for col_candidate in ["Image_URL", "IMAGE_URL", "Image URL", "IMAGE URL", "Image", "IMAGE"]:
-        if col_candidate in row and pd.notna(row.get(col_candidate)):
-            val = normalize_image_url(row.get(col_candidate))
-            if val:
-                return val
-    return ""
-
+    return s
 
 def resolve_item_image(sku, name="", category="", sheet_img="", custom_imgs=None):
     """
