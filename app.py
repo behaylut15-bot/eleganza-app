@@ -1492,7 +1492,7 @@ if authenticate():
                     cur_in = max(0.0, clean_num(cur_row.get('STOCK IN', cur_avail)))
                     cur_out = max(0.0, clean_num(cur_row.get('STOCK OUT', 0)))
                     cur_price = max(0.0, clean_num(cur_row.get('price', 0)))
-                   cur_status = str(cur_row.get('STATUS', 'Available'))
+                    cur_status = str(cur_row.get('STATUS', 'Available'))
                     if "get_sheet_image_from_row" not in globals():
                         def get_sheet_image_from_row(row):
                             if row is None:
