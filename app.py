@@ -1290,8 +1290,8 @@ if authenticate():
 
             k5, k6, k7, k8 = st.columns(4)
            if "tot_net_cash" not in locals():
-    tot_net_cash = 0.0
-k5.metric("Combined Cash (3 Accts)", f"ETB {tot_net_cash:,.2f}")
+                tot_net_cash = 0.0
+            k5.metric("Combined Cash (3 Accts)", f"ETB {tot_net_cash:,.2f}")
             k6.metric("Showroom & Stock Value", f"ETB {stock_val:,.2f}")
             k7.metric("Supplier Credit Payable", f"ETB {cred_owed:,.2f}")
             low_cnt = len(df_mgmt[df_mgmt['STOCK AVAILABLE'] <= df_mgmt['MIN STOCK']]) if not df_mgmt.empty and 'MIN STOCK' in df_mgmt.columns else 0
