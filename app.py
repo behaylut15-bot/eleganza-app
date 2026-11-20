@@ -196,7 +196,7 @@ st.markdown(f"""
         gap: 16px;
     }}
     .brand-title {{
-        font-size: 24px !important;
+        font-size: 17px !important;
         font-weight: 700 !important;
         color: {IVORY_HEX} !important;
         letter-spacing: 3px;
