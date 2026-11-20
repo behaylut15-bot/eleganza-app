@@ -36,7 +36,7 @@ BORDER_DARK = "#222222"
 
 CHARCOAL_HEX = "#0A0A0A"
 SAGE_HEX = "#10B981"       # Crisp Emerald Accent for Charts & Values
-CASHMERE_HEX = "#D4AF37"   # Luxury Warm Gold / Cashmere Accent
+CASHMERE_HEX = "#FFFFFF"   # Replaced Gold/Yellow with Pure White
 STONE_HEX = "#A3A3A3"      # Clean Light Neutral for Subtitles
 IVORY_HEX = "#FFFFFF"      # Pure White for High Contrast Text
 
