@@ -1289,7 +1289,9 @@ if authenticate():
             k4.metric("Net Operating Profit", f"ETB {net_p:,.2f}")
 
             k5, k6, k7, k8 = st.columns(4)
-            k5.metric("Combined Cash (3 Accts)", f"ETB {tot_net_cash:,.2f}")
+           if "tot_net_cash" not in locals():
+    tot_net_cash = 0.0
+k5.metric("Combined Cash (3 Accts)", f"ETB {tot_net_cash:,.2f}")
             k6.metric("Showroom & Stock Value", f"ETB {stock_val:,.2f}")
             k7.metric("Supplier Credit Payable", f"ETB {cred_owed:,.2f}")
             low_cnt = len(df_mgmt[df_mgmt['STOCK AVAILABLE'] <= df_mgmt['MIN STOCK']]) if not df_mgmt.empty and 'MIN STOCK' in df_mgmt.columns else 0
@@ -1682,8 +1684,15 @@ if authenticate():
     # =====================================================================
     # TAB 4: 3-ACCOUNT CASH TREASURY
     # =====================================================================
-    if "treasury" in tab_map:
+   if "treasury" in tab_map:
         with tab_map["treasury"]:
+            if "treasury_summary" not in locals() or len(treasury_summary) < 3:
+                treasury_summary = [
+                    ["Company Account", "0.00", "0.00", "0.00", "0.00", "0.00"],
+                    ["SAMI", "0.00", "0.00", "0.00", "0.00", "0.00"],
+                    ["JO", "0.00", "0.00", "0.00", "0.00", "0.00"],
+                    ["TOTAL ALL 3 ACCOUNTS", "0.00", "0.00", "0.00", "0.00", "0.00"],
+                ]
             st.subheader("🏦 Multi-Owner 3-Account Cash Treasury")
             st.caption("Live reconciliation across Company Account, SAMI, and JO.")
 
