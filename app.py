@@ -105,9 +105,6 @@ def normalize_image_url(raw_url):
     m_open = re.search(r"(?:drive\.google\.com/open\?id=|drive\.google\.com/uc\?.*id=)([a-zA-Z0-9_-]+)", s)
     if m_open:
         return f"https://lh3.googleusercontent.com/d/{m_open.group(1)}"
-    return s
-
-
 def get_sheet_image_from_row(row):
     """Extracts the image URL from any image column variant in Stock Management."""
     if row is None:
