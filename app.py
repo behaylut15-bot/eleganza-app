@@ -1492,7 +1492,17 @@ if authenticate():
                     cur_in = max(0.0, clean_num(cur_row.get('STOCK IN', cur_avail)))
                     cur_out = max(0.0, clean_num(cur_row.get('STOCK OUT', 0)))
                     cur_price = max(0.0, clean_num(cur_row.get('price', 0)))
-                    cur_status = str(cur_row.get('STATUS', 'Available'))
+                   cur_status = str(cur_row.get('STATUS', 'Available'))
+                    if "get_sheet_image_from_row" not in globals():
+                        def get_sheet_image_from_row(row):
+                            if row is None:
+                                return ""
+                            for col_candidate in ["Image_URL", "IMAGE_URL", "Image URL", "IMAGE URL", "Image", "IMAGE"]:
+                                if col_candidate in row and pd.notna(row.get(col_candidate)):
+                                    val = str(row.get(col_candidate)).strip()
+                                    if val and val.lower() not in ("nan", "none", "null"):
+                                        return val
+                            return ""
                     cur_sheet_img = get_sheet_image_from_row(cur_row)
 
                     with st.form("edit_catalog_item_form"):
