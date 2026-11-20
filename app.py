@@ -537,7 +537,7 @@ class EleganzaReportPDF(FPDF):
 
     def footer(self):
         self.set_y(self.h - 14)
-        self.set_draw_color(212, 175, 55)
+        self.set_draw_color(40, 40, 40)
         self.set_line_width(0.35)
         self.line(10, self.get_y(), self.w - 10, self.get_y())
         self.set_y(self.h - 11)
@@ -559,7 +559,7 @@ def _init_pdf():
 def _draw_pdf_header(pdf, title, subtitle):
     f_name = pdf.font_name
     BLACK = (10, 10, 10)
-    GOLD = (212, 175, 55)
+    GOLD = (255, 255, 255)
     WHITE = (255, 255, 255)
     IVORY = (245, 245, 245)
 
@@ -664,7 +664,7 @@ def _draw_pdf_table(pdf, headers, rows, font_size=6.5, col_widths=None):
 def _draw_total_banner(pdf, label, amount):
     f_name = pdf.font_name
     BLACK = (10, 10, 10)
-    GOLD = (212, 175, 55)
+    GOLD = (255, 255, 255)
     WHITE = (255, 255, 255)
     pdf.ln(5)
     if pdf.get_y() + 18 > pdf.h - pdf.b_margin:
