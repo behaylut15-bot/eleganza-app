@@ -99,12 +99,12 @@ def normalize_image_url(raw_url):
     s = str(raw_url).strip()
     if not s or s.lower() in ("nan", "none", "null"):
         return ""
-    m_file = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", s)
+   m_file = re.search(r"drive\.google\.com/file/d/([a-zA-Z0-9_-]+)", s)
     if m_file:
-        return f"https://drive.google.com/uc?export=view&id={m_file.group(1)}"
-    m_open = re.search(r"drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)", s)
+        return f"https://lh3.googleusercontent.com/d/{m_file.group(1)}"
+    m_open = re.search(r"(?:drive\.google\.com/open\?id=|drive\.google\.com/uc\?.*id=)([a-zA-Z0-9_-]+)", s)
     if m_open:
-        return f"https://drive.google.com/uc?export=view&id={m_open.group(1)}"
+        return f"https://lh3.googleusercontent.com/d/{m_open.group(1)}"
     return s
 
 
