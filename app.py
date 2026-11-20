@@ -196,7 +196,7 @@ st.markdown(f"""
         gap: 16px;
     }}
     .brand-title {{
-        font-size: 17px !important;
+        font-size: 24px !important;
         font-weight: 700 !important;
         color: {IVORY_HEX} !important;
         letter-spacing: 3px;
@@ -231,14 +231,14 @@ st.markdown(f"""
     }}
     div[data-testid="stMetric"] label {{
         color: {STONE_HEX} !important;
-        font-size: 12px !important;
+        font-size: 10px !important;
         font-weight: 600 !important;
         text-transform: uppercase;
         letter-spacing: 0.6px;
     }}
     div[data-testid="stMetricValue"] {{
         color: {IVORY_HEX} !important;
-        font-size: 22px !important;
+        font-size: 17px !important;
         font-weight: 700 !important;
     }}
     div[data-baseweb="tab-list"] {{
