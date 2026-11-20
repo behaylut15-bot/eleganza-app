@@ -1695,7 +1695,7 @@ if authenticate():
                     st.markdown(f"""
                         <div class="treasury-card">
                             <div style="color:{CASHMERE_HEX}; font-weight:700; font-size:15px;">{row[0]}</div>
-                            <div style="color:{IVORY_HEX}; font-size:24px; font-weight:800; margin:6px 0;">ETB {row[5]}</div>
+                            <div style="color:{IVORY_HEX}; font-size:17px; font-weight:800; margin:6px 0;">ETB {row[5]}</div>
                             <div style="font-size:12px; color:{STONE_HEX};">
                                 Capital/Transfers: <b>{row[1]}</b><br>
                                 Sales In: <span style="color:{SAGE_HEX};">+{row[2]}</span> | Outflows: <span style="color:#EF4444;">-{clean_num(row[3])+clean_num(row[4]):,.2f}</span>
