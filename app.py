@@ -61,7 +61,7 @@ STOCK_MGMT_HEADERS = [
     "ITEM CODE", "ITEM NAME", "CATEGORY", "Measure", "MIN STOCK",
     "STOCK IN", "STOCK OUT", "STOCK AVAILABLE", "price", "total price", "STATUS", "Image_URL"
 ]
-ACCOUNTS = ["Company Account", "Owner 1 Account", "Owner 2 Account"]
+ACCOUNTS = ["Company Account", "SAMI", "JO"]
 ETH_MONTHS = [
     "Meskerem", "Tikimt", "Hidar", "Tahsas", "Tir", "Yekatit",
     "Megabit", "Miazia", "Ginbot", "Sene", "Hamle", "Nehase", "Pagume"
@@ -1686,7 +1686,7 @@ if authenticate():
     if "treasury" in tab_map:
         with tab_map["treasury"]:
             st.subheader("🏦 Multi-Owner 3-Account Cash Treasury")
-            st.caption("Live reconciliation across Company Account, Owner 1 Account, and Owner 2 Account.")
+            st.caption("Live reconciliation across Company Account, SAMI, and JO.")
 
             tc1, tc2, tc3 = st.columns(3)
             for idx, col in enumerate([tc1, tc2, tc3]):
@@ -1945,7 +1945,7 @@ if authenticate():
 
                 st.markdown("---")
                 st.markdown("#### 2️⃣ 3-Account Treasury & Co-Owner Balance PDF")
-                st.write("Complete cash reconciliation for Company Account, Owner 1 Account, and Owner 2 Account.")
+                st.write("Complete cash reconciliation for Company Account, SAMI, and JO.")
                 trs_bytes = generate_treasury_pdf(period_label, treasury_summary, df_cash_filt)
                 st.download_button("📥 Download 3-Account Treasury PDF", data=trs_bytes, file_name=f"Eleganza_Homes_Treasury_{curr_eth_y}_{curr_eth_m}.pdf", mime="application/pdf", type="primary", use_container_width=True)
 
