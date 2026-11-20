@@ -1692,7 +1692,6 @@ if authenticate():
                     ["SAMI", "0.00", "0.00", "0.00", "0.00", "0.00"],
                     ["JO", "0.00", "0.00", "0.00", "0.00", "0.00"],
                     ["TOTAL ALL 3 ACCOUNTS", "0.00", "0.00", "0.00", "0.00", "0.00"],
-                ]
             st.subheader("🏦 Multi-Owner 3-Account Cash Treasury")
             st.caption("Live reconciliation across Company Account, SAMI, and JO.")
 
