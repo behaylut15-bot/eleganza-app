@@ -1201,41 +1201,40 @@ if authenticate():
     df_cost_filt = filter_by_ec_range(df_cost)
     df_cash_filt = filter_by_ec_range(df_cash)
 
-    # Unit Cost Map for COGS & Gross Profit
+    # Unit Cost Map for COGS & Gross Profit (matches SKU / ITEM NUMBER first, then ITEM NAME)
     unit_cost_map = {}
+    if not df_mgmt.empty and 'ITEM CODE' in df_mgmt.columns and 'price' in df_mgmt.columns:
+        for _, r in df_mgmt.iterrows():
+            sku_k = str(r.get('ITEM CODE', '')).strip().upper()
+            p_m = clean_num(r.get('price', 0))
+            if sku_k and p_m > 0:
+                unit_cost_map[sku_k] = p_m
+
     if not df_in.empty:
         for _, r in df_in.iterrows():
-            code = str(r.get('ITEM NAME', '')).strip().upper()
             p = clean_num(r.get('PRICE', 0)) or clean_num(r.get('credit price', 0))
-            if code and p > 0:
-                unit_cost_map[code] = p
+            if p <= 0 and clean_num(r.get('STOCK IN', 0)) > 0:
+                tot_in = clean_num(r.get('TOTAL PRICE', 0)) or clean_num(r.get('total credit price', 0))
+                if tot_in > 0:
+                    p = tot_in / clean_num(r.get('STOCK IN', 1))
+            if p > 0:
+                sku_in = str(r.get('ITEM NUMBER', '')).strip().upper()
+                name_in = str(r.get('ITEM NAME', '')).strip().upper()
+                if sku_in:
+                    unit_cost_map[sku_in] = p
+                if name_in:
+                    unit_cost_map[name_in] = p
 
     if not df_out_filt.empty:
         df_out_filt['Code_Clean'] = df_out_filt['ITEM NUMBER'].astype(str).str.strip().str.upper()
-        df_out_filt['Est_Unit_Cost'] = df_out_filt['Code_Clean'].map(unit_cost_map).fillna(0)
+        df_out_filt['Name_Clean'] = df_out_filt['ITEM NAME'].astype(str).str.strip().str.upper() if 'ITEM NAME' in df_out_filt.columns else ""
+        df_out_filt['Est_Unit_Cost'] = (
+            df_out_filt['Code_Clean'].map(unit_cost_map)
+            .fillna(df_out_filt['Name_Clean'].map(unit_cost_map))
+            .fillna(0)
+        )
         df_out_filt['Est_COGS'] = df_out_filt['STOCK OUT'] * df_out_filt['Est_Unit_Cost']
         df_out_filt['Gross_Profit'] = df_out_filt['TOTAL PRICE'] - df_out_filt['Est_COGS']
-
-    # Compute 3-Account Live Treasury Balances
-    treasury_summary = []
-    tot_cap_net, tot_sales_in, tot_purch_out, tot_exp_out, tot_net_cash = 0.0, 0.0, 0.0, 0.0, 0.0
-    for acc in ACCOUNTS:
-        c_in = df_cash_filt[(df_cash_filt['Account'] == acc) & (df_cash_filt['Type'] == 'Cash In')]['Amount'].sum() if not df_cash_filt.empty else 0.0
-        c_out = df_cash_filt[(df_cash_filt['Account'] == acc) & (df_cash_filt['Type'] == 'Cash Out')]['Amount'].sum() if not df_cash_filt.empty else 0.0
-        cap_net = c_in - c_out
-        s_in = df_out_filt[df_out_filt['Account'] == acc]['TOTAL PRICE'].sum() if not df_out_filt.empty and 'Account' in df_out_filt.columns else 0.0
-        p_out = df_in_filt[df_in_filt['Account'] == acc]['TOTAL PRICE'].sum() if not df_in_filt.empty and 'Account' in df_in_filt.columns else 0.0
-        e_out = df_cost_filt[df_cost_filt['Account'] == acc]['amount'].sum() if not df_cost_filt.empty and 'Account' in df_cost_filt.columns else 0.0
-        net_b = cap_net + s_in - p_out - e_out
-
-        tot_cap_net += cap_net
-        tot_sales_in += s_in
-        tot_purch_out += p_out
-        tot_exp_out += e_out
-        tot_net_cash += net_b
-        treasury_summary.append([acc, f"{cap_net:,.2f}", f"{s_in:,.2f}", f"{p_out:,.2f}", f"{e_out:,.2f}", f"{net_b:,.2f}"])
-
-    treasury_summary.append(["TOTAL ALL 3 ACCOUNTS", f"{tot_cap_net:,.2f}", f"{tot_sales_in:,.2f}", f"{tot_purch_out:,.2f}", f"{tot_exp_out:,.2f}", f"{tot_net_cash:,.2f}"])
 
     # =====================================================================
     # ROLE-BASED NAVIGATION TABS
